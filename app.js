@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.0.2';
+const VERSION='1.0.3';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -77,7 +77,13 @@ function animalCard(a,options={}){
  const number=green&&options.latest?'':String(idx);
  return `<button class="animal-card ${green?'green':not?'no-sample':''} ${options.isNext?'next':''} ${options.latest?'just-linked':''}" type="button" data-action="animal" data-uid="${safe(a.uid)}"><span class="pos">${number}</span><span class="line">${safe(a.line)}</span>${green?`<span class="sample-id">${safe(a.sample)}</span>`:''}${a.yield?`<span class="yield">${safe(a.yield)} kg</span>`:''}<span class="right-tag">${state}</span></button>`;
 }
-function cameraMarkup(){return `<div class="camera-panel" id="camera-panel"><div class="camera-placeholder" id="camera-placeholder">Camera starting…<br>Point at the next sample pot</div><div class="camera-video" id="qr-reader"></div><div class="camera-hud"><div class="camera-title"><span>SCAN NEXT ${page==='boxes'?'BOX':'POT'}</span><span class="camera-badge" id="camera-badge">CAMERA OFF</span></div><div class="finder"></div></div><div class="scan-affirm" id="scan-affirm" hidden>✓ LINKED</div></div><div class="scan-status" id="scan-status" role="status">Camera ready to start</div><div class="buttons camera-controls">${btn('START CAMERA','camera-toggle','secondary smallbtn')}${btn(page==='boxes'?'TYPE BOX ID':'TYPE SAMPLE ID','manual-sample','outline smallbtn')}</div><details class="diag"><summary>Camera diagnostics</summary><pre id="scan-debug">Waiting for camera</pre><p class="frame-tip">Hold a QR code in view. Tap the button, then keep it steady for two seconds. This captures the main camera feed and tests the still image without linking an animal.</p><button type="button" class="btn secondary wide" data-action="test-frame" id="test-frame-button">CAPTURE &amp; TEST FRAME</button><div id="frame-result" class="frame-result" role="status" aria-live="polite">No frame tested yet.</div><img id="frame-preview" class="frame-preview" alt="Still frame captured from the main scanner camera" hidden></details>`;}
+function cameraMarkup(){
+ const panel=`<div class="camera-panel" id="camera-panel"><div class="camera-placeholder" id="camera-placeholder">Camera starting…<br>Point at the next sample pot</div><div class="camera-video" id="qr-reader"></div><div class="camera-hud"><div class="camera-title"><span>SCAN NEXT ${page==='boxes'?'BOX':'POT'}</span><span class="camera-badge" id="camera-badge">CAMERA OFF</span></div><div class="finder"></div></div><div class="scan-affirm" id="scan-affirm" hidden>✓ LINKED</div>${page==='linking'?'<div class="scan-status" id="scan-status" role="status" hidden></div><button class="btn secondary camera-retry" id="camera-retry" type="button" data-action="retry-camera" hidden>RETRY CAMERA</button>':''}</div>`;
+ // The normal linking screen needs only the camera; no controls or diagnostics below it.
+ if(page==='linking')return panel;
+ // Preserve box-scanning controls; these are separate from the sample-linking screen.
+ return panel+`<div class="scan-status" id="scan-status" role="status">Camera ready to start</div><div class="buttons camera-controls">${btn('START CAMERA','camera-toggle','secondary smallbtn')}${btn('TYPE BOX ID','manual-sample','outline smallbtn')}</div><details class="diag"><summary>Camera diagnostics</summary><pre id="scan-debug">Waiting for camera</pre><p class="frame-tip">Hold a QR code in view. Tap the button, then keep it steady for two seconds.</p><button type="button" class="btn secondary wide" data-action="test-frame" id="test-frame-button">CAPTURE &amp; TEST FRAME</button><div id="frame-result" class="frame-result" role="status" aria-live="polite">No frame tested yet.</div><img id="frame-preview" class="frame-preview" alt="Still frame captured from the camera" hidden></details>`;
+}
 function linkingScreen(){
  const n=waiting().length,l=linked().length,ns=noSample().length;
  const chips=`<div class="pillrow"><span class="pill red">${n} awaiting</span><button class="pill green" data-action="show-linked">${l} linked</button><span class="pill">${ns} no sample</span></div>`;
@@ -93,11 +99,10 @@ function linkingScreen(){
  }
  else {
   html+=`<div class="section-head"><strong>LAST LINKED ANIMAL</strong><button type="button" data-action="show-linked">VIEW ALL LINKED</button></div><div class="latest-slot" id="last-linked">${latest()?animalCard(latest()):'<div class="no-last">The last linked animal will appear here in green</div>'}</div>`;
-  if(data.phase==='linking'&&n){
-   html+=cameraMarkup()+`<p class="hint">Keep pointing at each pot in turn. Each successful QR read links the next awaiting animal; the camera stays open.</p><div class="section-head"><strong>AWAITING · <span id="await-count">${n}</span></strong></div><div id="await-rows">${waiting().map((a,i)=>animalCard(a,{isNext:i===0})).join('')}</div>`;
+  if(data.phase==='linking'){
+   if(n)html+=cameraMarkup()+`<section id="awaiting-section"><div class="section-head"><strong>AWAITING · <span id="await-count">${n}</span></strong></div><div id="await-rows">${waiting().map((a,i)=>animalCard(a,{isNext:i===0})).join('')}</div></section>`;
    if(ns)html+=`<div class="section-head"><strong>NO SAMPLE · ${ns}</strong></div><div id="no-sample-rows">${noSample().map(a=>animalCard(a)).join('')}</div>`;
-  }else if(data.phase==='linking')html+=`<div id="all-processed" class="notice ok">All animals processed. You can now confirm the sample-linking stage.</div>`;
-  else html+=`<div class="notice ok">Sample linking confirmed. Return to Session Management to continue.</div>`;
+  }else html+=`<div class="notice ok">Sample linking confirmed. Return to Session Management to continue.</div>`;
   footer=`${btn('+ ADD COWS','add-animal','primary')}${btn('SESSION MANAGEMENT','goto-session','outline')}`;
  }
  return [html,footer];
@@ -115,9 +120,9 @@ function refreshLinkingAfterScan(){
  const remain=$('#await-rows');if(remain)remain.innerHTML=waiting().map((a,i)=>animalCard(a,{isNext:i===0})).join('');
  const count=$('#await-count');if(count)count.textContent=String(waiting().length);
  const pills=$$('.pillrow .pill');if(pills[0])pills[0].textContent=`${waiting().length} awaiting`;if(pills[1])pills[1].textContent=`${linked().length} linked`;if(pills[2])pills[2].textContent=`${noSample().length} no sample`;
- if(!waiting().length){const e=$('#await-rows');if(e)e.innerHTML='<div class="notice ok">All animals processed. Return to Session Management to confirm.</div>'}
+ if(!waiting().length){$('#awaiting-section')?.remove();}
 }
-function scanStatus(message,isError=false){const el=$('#scan-status');if(el){el.textContent=message;el.classList.toggle('error',isError)}updateDebug();}
+function scanStatus(message,isError=false){const el=$('#scan-status');if(el){el.textContent=message;el.classList.toggle('error',isError);if(page==='linking')el.hidden=!isError;}updateDebug();}
 function flash(){const e=$('#scan-affirm');if(!e)return;e.textContent=page==='boxes'?'✓ BOX RECORDED':'✓ LINKED';e.hidden=false;setTimeout(()=>{if(e.isConnected)e.hidden=true},520);}
 function linkSample(raw,specificUid=''){
  const code=String(raw??'').trim();if(!code){toast('Enter a Sample ID');return false}
@@ -273,6 +278,7 @@ async function startCamera(){
   });
   if(generation!==cameraGeneration||scanner!==opened){try{await opened.stop()}catch{}try{await opened.clear()}catch{}return}
   cameraState='live';
+  $('#camera-retry')?.setAttribute('hidden','');
   $('#camera-placeholder')?.setAttribute('hidden','');
   const video=$('#qr-reader video');if(video){video.setAttribute('playsinline','');video.muted=true}
   updateCameraButton();scanStatus('CAMERA LIVE — point at the next QR code');
@@ -283,7 +289,7 @@ async function startCamera(){
   if(generation!==cameraGeneration)return;
   lastError=String(err?.message||err);cameraState='off';scanner=null;scannerMode='';
   if(opened){try{await opened.stop()}catch{}try{await opened.clear()}catch{}}
-  updateCameraButton();scanStatus('CAMERA ERROR — '+lastError,true);
+  updateCameraButton();scanStatus('CAMERA ERROR — '+lastError,true);$('#camera-retry')?.removeAttribute('hidden');
  }
 }
 async function navigate(to,{autoCamera=false}={}){
@@ -298,12 +304,13 @@ function openModal(name,which=''){
  if(name==='edit-session')html=`<h2>Edit session</h2><label class="field-label">ORGANISATION</label><input class="input" id="edit-org" value="${safe(data.org)}"><label class="field-label">SITE / FARM</label><input class="input" id="edit-site" value="${safe(data.site)}"><label class="field-label">HERD</label><input class="input" id="edit-herd" value="${safe(data.herd)}"><label class="field-label">SESSION ID</label><input class="input" id="edit-session-id" value="${safe(data.session)}"><div class="time-row"><label><span class="tinycap">MILKING START</span>${timeInput('edit-start',data.start)}</label><label><span class="tinycap">MILKING END</span>${timeInput('edit-end',data.end)}</label></div><label style="display:flex;align-items:center;gap:9px"><input type="checkbox" id="edit-yields" ${data.yields?'checked':''}> Yields required</label><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('SAVE','save-session','secondary')}</div>`;
  if(name==='add-animal')html=`<h2>Add cow</h2><p class="hint">Enter the line number written on the pot lid.</p><label class="field-label">ANIMAL LINE NUMBER</label><input class="input" id="new-line" maxlength="25" autocomplete="off" inputmode="numeric" placeholder="e.g. 00207"><label class="field-label">YIELD (kg) ${data.yields?'':'(optional)'}</label><input class="input" id="new-yield" type="number" min="0" step="0.1" inputmode="decimal" placeholder="e.g. 14.2"><div class="buttons">${btn('DONE','modal-close','outline')}${btn('ADD COW','save-animal','primary')}</div>`;
  if(name==='manual')html=`<h2>${page==='boxes'?'Enter Box ID':'Enter Sample ID'}</h2><p class="hint">Manual entry is a fallback; the camera should scan continuously during normal linking.</p><label class="field-label">${page==='boxes'?'BOX ID':'SAMPLE ID'}</label><input class="input" id="manual-id" autocomplete="off" placeholder="Scan code value"><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('LINK','save-manual','secondary')}</div>`;
- if(name==='animal'&&animal){html=`<h2>Animal ${safe(animal.line)}</h2><div class="notice">Status: ${animal.sample?'Linked to '+safe(animal.sample):animal.noSampleReason?'No sample — '+safe(animal.noSampleReason):'Awaiting sample'}</div><label class="field-label">LINE NUMBER</label><input class="input" id="animal-line" value="${safe(animal.line)}"><label class="field-label">YIELD (kg)</label><input class="input" id="animal-yield" type="number" step="0.1" min="0" value="${safe(animal.yield)}"><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('SAVE DETAILS','save-animal-details','secondary')}</div>${animal.sample?btn('REMOVE SAMPLE LINK','unlink-animal','outline wide'):!animal.noSampleReason?btn('MARK NO SAMPLE','no-sample','soft wide'):btn('UNDO NO SAMPLE','undo-no-sample','soft wide')}${btn('REMOVE ANIMAL','remove-animal','danger wide')}`;}
+ if(name==='animal'&&animal){html=`<h2>Animal ${safe(animal.line)}</h2><div class="notice">Status: ${animal.sample?'Linked to '+safe(animal.sample):animal.noSampleReason?'No sample — '+safe(animal.noSampleReason):'Awaiting sample'}</div>${!animal.sample&&!animal.noSampleReason&&data.phase==='linking'?btn('TYPE SAMPLE ID','type-animal-sample','secondary wide'):''}<label class="field-label">LINE NUMBER</label><input class="input" id="animal-line" value="${safe(animal.line)}"><label class="field-label">YIELD (kg)</label><input class="input" id="animal-yield" type="number" step="0.1" min="0" value="${safe(animal.yield)}"><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('SAVE DETAILS','save-animal-details','secondary')}</div>${animal.sample?btn('REMOVE SAMPLE LINK','unlink-animal','outline wide'):!animal.noSampleReason?btn('MARK NO SAMPLE','no-sample','soft wide'):btn('UNDO NO SAMPLE','undo-no-sample','soft wide')}${btn('REMOVE ANIMAL','remove-animal','danger wide')}`;}
+ if(name==='manual-animal'&&animal)html=`<h2>Sample capture · ${safe(animal.line)}</h2><p class="hint">Manually enter this animal's Sample ID if its QR code cannot be read.</p><label class="field-label">SAMPLE ID</label><input class="input" id="manual-id" inputmode="numeric" autocomplete="off" placeholder="Enter Sample ID"><div class="buttons">${btn('BACK TO SCAN','modal-close','outline')}${btn('LINK SAMPLE','link-animal-sample','secondary')}</div>`;
  if(name==='no-sample'&&animal)html=`<h2>No sample: ${safe(animal.line)}</h2><label class="field-label">REASON (OPTIONAL)</label><select class="input" id="no-sample-reason"><option>Not sampled</option><option>Animal absent</option><option>Sample lost</option><option>Insufficient milk</option><option>Other</option></select><div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','save-no-sample','secondary')}</div>`;
  if(name==='confirm-linking')html=`<h2>All samples linked?</h2><p class="hint">${waiting().length?`${waiting().length} animals are still awaiting samples. Link them or mark them as No sample before confirming.`:'All animals have been dealt with. Confirm this stage to continue to sample boxes.'}</p>${dupLines().size?`<div class="notice warning">Duplicate animal line numbers need resolving first.</div>`:''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
  if(name==='confirm-close')html=`<h2>Close sampling session?</h2><p class="hint">Closing makes this session read-only. Data is not sent to NMR. Export the JSON if you need a copy.</p><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('CLOSE SESSION','do-close','danger')}</div>`;
  $('#modal-root').innerHTML=`<div class="modal-layer" data-action="backdrop"><section class="sheet" role="dialog" aria-modal="true"><div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>${html}</section></div>`;
- const focus=({ 'add-animal':'new-line',manual:'manual-id'})[name];if(focus)$('#'+focus)?.focus();
+ const focus=({ 'add-animal':'new-line',manual:'manual-id','manual-animal':'manual-id'})[name];if(focus)$('#'+focus)?.focus();
 }
 function closeModal(resume=true){modal='';selectedUid='';$('#modal-root').replaceChildren();if(resume&&((page==='linking'&&data.phase==='linking'&&waiting().length)||page==='boxes'))startCamera();}
 function addDemo(){if(animals().length){toast('Demo animals can be loaded only into an empty list.');return}for(const [line,yieldKg] of demo)data.animals.push({uid:uid(),line,yield:yieldKg,sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false});store();closeModal(false);page='linking';render();toast('Five demo animals added.');}
@@ -333,8 +340,11 @@ function doAction(action,button){
  case 'confirm-order':data.phase='linking';data.startedAt||=timestamp();store();render();startCamera();break;
  case 'load-demo':addDemo();break;
  case 'camera-toggle':if(scanner||cameraState==='starting')stopCamera();else startCamera();break;
+ case 'retry-camera':startCamera();break;
  case 'test-frame':testLiveFrame();break;
  case 'manual-sample':openModal('manual');break;
+ case 'type-animal-sample':openModal('manual-animal',selectedUid);break;
+ case 'link-animal-sample':{const ok=linkSample($('#manual-id')?.value||'',selectedUid);if(ok){closeModal(false);if(page==='linking'&&waiting().length)startCamera();}break;}
  case 'save-manual':{const v=$('#manual-id')?.value||'';const ok=page==='boxes'?boxScan(v):linkSample(v);if(ok){closeModal(false);if(page==='linking'&&waiting().length||page==='boxes')startCamera();}break;}
  case 'animal':selectedUid=button.dataset.uid;openModal('animal',selectedUid);break;
  case 'save-animal-details':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;const line=$('#animal-line').value.trim(),yieldKg=$('#animal-yield').value.trim();if(!/^[-\w]{1,25}$/.test(line)||animals().some(b=>b!==a&&b.line===line))return toast('Invalid or duplicate animal line');if(yieldKg!==''&&(!Number.isFinite(+yieldKg)||+yieldKg<0))return toast('Invalid yield');a.line=line;a.yield=yieldKg;store();closeModal(false);render();if(page==='linking'&&data.phase==='linking'&&waiting().length)startCamera();break;}
