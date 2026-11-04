@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.2.3';
+const VERSION='1.2.4';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -397,8 +397,8 @@ function openModal(name,which='',options={}){
  if(name==='no-sample'&&animal)html=`<h2>No sample: ${safe(animal.line)}</h2><label class="field-label">REASON (OPTIONAL)</label><select class="input" id="no-sample-reason"><option>Not sampled</option><option>Animal absent</option><option>Sample lost</option><option>Insufficient milk</option><option>Other</option></select><div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','save-no-sample','secondary')}</div>`;
  if(name==='confirm-linking')html=`<h2>All samples linked?</h2><p class="hint">${waiting().length?`${waiting().length} animals are still awaiting samples. Link them or mark them as No sample before confirming.`:'All animals have been dealt with. Confirm this stage to continue to sample boxes.'}</p>${dupLines().size?`<div class="notice warning">Duplicate animal line numbers need resolving first.</div>`:''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
  if(name==='confirm-close')html=`<h2>Close sampling session?</h2><p class="hint">Closing makes this session read-only. Data is not sent to NMR. Export the JSON if you need a copy.</p><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('CLOSE SESSION','do-close','danger')}</div>`;
- $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':'Post-milking'}">${name==='capture'||name==='herd-picker'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
- const focus=({ 'add-animal':'new-line',manual:'manual-id','herd-yield':'herd-yield'})[name];if(focus){const input=$('#'+focus);if(input){input.focus({preventScroll:true});if(name==='herd-yield'&&input.value)input.select();}}if(name==='capture'&&!options.skipCamera)startCamera();if(name==='camera-settings')CameraSettings.start();
+ $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':'Post-milking'}">${name==='capture'||name==='herd-picker'||name==='herd-yield'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
+ const focus=({ 'add-animal':'new-line',manual:'manual-id'})[name];if(focus){const input=$('#'+focus);if(input)input.focus({preventScroll:true});}if(name==='capture'&&!options.skipCamera)startCamera();if(name==='camera-settings')CameraSettings.start();
 }
 function closeModal(resume=true){clearTimeout(captureCompletionTimer);captureCompletionTimer=null;captureCompleting=false;if(modal==='capture'||modal==='camera-settings')stopCamera();modal='';selectedUid='';$('#modal-root').replaceChildren();if(resume&&((page==='linking'&&data.phase==='linking'&&waiting().length)||page==='boxes'))startCamera();}
 function addDemo(){if(animals().length){toast('Demo animals can be loaded only into an empty list.');return}for(const [line,yieldKg] of demo)data.animals.push({uid:uid(),line,yield:yieldKg,sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false});store();closeModal(false);page='linking';render();toast('Five demo animals added.');}
@@ -443,7 +443,8 @@ function doAction(action,button){
  case 'herd-duplicate':HerdDemo.confirmDuplicate();break;
  case 'herd-back-warning':HerdDemo.backWarning();break;
  case 'herd-done':HerdDemo.done();break;
- case 'herd-save-yield':HerdDemo.saveYield();break;
+ case 'herd-yield-digit':HerdDemo.yieldDigit(button.dataset.digit);break;
+ case 'herd-save-yield':HerdDemo.saveYield(button.dataset.mode||'confirm');break;
  case 'camera-toggle':if(scanner||cameraState==='starting')stopCamera();else startCamera();break;
  case 'retry-camera':startCamera();break;
  case 'test-frame':testLiveFrame();break;
