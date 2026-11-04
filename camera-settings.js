@@ -6,12 +6,13 @@
 'use strict';
 const CameraSettings=(()=>{
  const KEY='postmilk-camera-preferences-v1';
- const defaults={deviceId:'auto',zoom:1};
+ const defaults={deviceId:'auto',zoom:1,codeFormat:'qr'};
  let saved={...defaults};
  try{
   const value=JSON.parse(localStorage.getItem(KEY)||'null');
   if(value&&typeof value==='object'){
    saved.deviceId=typeof value.deviceId==='string'?value.deviceId:'auto';
+   saved.codeFormat=value.codeFormat==='qr-dm'?'qr-dm':'qr';
    const z=Number(value.zoom);saved.zoom=Number.isFinite(z)&&z>=.5&&z<=10?z:1;
   }
  }catch{}
@@ -32,12 +33,24 @@ const CameraSettings=(()=>{
    '<div class="camera-zoom-buttons"><button type="button" data-action="camera-zoom-preset" data-zoom="1" disabled>1×</button><button type="button" data-action="camera-zoom-preset" data-zoom="2" disabled>2×</button></div>'+
    '<p id="camera-zoom-note" class="camera-settings-note">Checking whether Safari exposes hardware zoom…</p>'+
    '<p id="camera-focus-note" class="camera-settings-note">Autofocus is controlled by the camera unless the browser exposes focus controls.</p>'+
+   '<label class="field-label" for="camera-code-format">BARCODE TYPE</label>'+
+   '<select id="camera-code-format" class="input"><option value="qr">QR codes only (tested)</option><option value="qr-dm">QR + Data Matrix</option></select>'+
+   '<p class="camera-settings-note">Use QR + Data Matrix only if your pot labels have the L-shaped Data Matrix border. The extra format may reduce scan speed.</p>'+
    '<div class="camera-settings-status" id="camera-settings-status" role="status" aria-live="polite">Preparing camera…</div>'+
    '<div class="buttons"><button type="button" class="btn outline" data-action="camera-reset">DEFAULTS</button><button type="button" class="btn secondary" data-action="camera-settings-done">DONE</button></div>'+
    '</div>';
  }
  function status(msg){const e=$('#camera-settings-status');if(e)e.textContent=msg;}
  function cameraConstraint(){return saved.deviceId==='auto'?{facingMode:'environment'}:saved.deviceId;}
+ function formats(){
+  const qr=Html5QrcodeSupportedFormats.QR_CODE;
+  const matrix=Html5QrcodeSupportedFormats.DATA_MATRIX;
+  return saved.codeFormat==='qr-dm'&&matrix!==undefined?[qr,matrix]:[qr];
+ }
+ function chooseFormat(next){
+  saved.codeFormat=next==='qr-dm'?'qr-dm':'qr';save();
+  status(saved.codeFormat==='qr-dm'?'QR and Data Matrix enabled for future scans.':'QR-only scanning selected.');
+ }
  function getTrack(){
   const vid=modal==='camera-settings'?$('#settings-reader video'):getScannerVideo();
   return vid?.srcObject?.getVideoTracks?.()[0]||null;
@@ -165,6 +178,7 @@ const CameraSettings=(()=>{
  async function onStarted(instance){
   if(!instance||cameraState!=='live')return;
   if(modal==='camera-settings'){
+   const select=$('#camera-code-format');if(select)select.value=saved.codeFormat;
    status('Camera live. Checking lens and zoom controls…');
    const loading=$('#camera-settings-loading');if(loading)loading.hidden=true;
    await listCameras();
@@ -201,5 +215,5 @@ const CameraSettings=(()=>{
  function noteError(err){
   if(modal==='camera-settings')status('Camera could not start: '+String(err?.message||err)+'. Try Defaults or allow camera access.');
  }
- return {html,cameraConstraint,onStarted,start,chooseCamera,setZoom,reset,noteError,capabilities,trackSettings};
+ return {html,cameraConstraint,formats,chooseFormat,onStarted,start,chooseCamera,setZoom,reset,noteError,capabilities,trackSettings};
 })();
