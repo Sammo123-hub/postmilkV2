@@ -47,3 +47,14 @@
 .capture-linked-id{font:800 clamp(24px,7vw,34px) 'DM Sans',Arial,sans-serif;overflow-wrap:anywhere;line-height:1.16}
 .capture-complete .capture-actions .capture-delete-display{border-color:#e8174a;color:#ca103c}
 .capture-complete .capture-actions .btn:disabled{opacity:1}
+
+/* UI-20 / mockup 4.3.5: fixed in-app number pad, camera off. */
+.sheet:has(.manual-capture-pad){max-width:440px;border-radius:22px 22px 0 0;padding:8px 16px max(19px,env(safe-area-inset-bottom));gap:0}
+.manual-capture-title{margin:8px 0 6px;font:800 13px 'Barlow Condensed',Arial,sans-serif;color:var(--blue);letter-spacing:.11em}
+.manual-capture-display{display:block;width:100%;border:2px solid #d4e1e7;border-radius:6px;color:var(--navy);background:#fff;min-height:54px;font:800 27px 'DM Sans',Arial,sans-serif;letter-spacing:.08em;padding:7px 12px}
+.manual-capture-pad{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0}
+.manual-capture-pad button{min-height:52px;border:1px solid #cbd8df;border-radius:6px;background:#f5f9fb;color:var(--navy);font:700 21px 'DM Sans',Arial,sans-serif}
+.manual-capture-pad button:active{background:#d6ecf6}
+.manual-capture-pad button.manual-clear{color:#c5103a;font:800 17px 'Barlow Condensed',Arial,sans-serif}
+.manual-capture-actions{display:flex;gap:8px}
+.manual-capture-actions .btn{flex:1;font-size:16px;min-height:53px;min-width:0}
