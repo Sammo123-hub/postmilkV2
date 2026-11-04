@@ -16,7 +16,7 @@ const CameraSettings=(()=>{
    const z=Number(value.zoom);saved.zoom=Number.isFinite(z)&&z>=.5&&z<=10?z:1;
   }
  }catch{}
- let zoomRange=null,lastTrack=null,zoomRequested=null,zoomBusy=false,devices=[],activeSettingsReader=null;
+ let zoomRange=null,zoomRequested=null,zoomBusy=false,devices=[],zoomWatchBusy=false,zoomWatchTimers=[],lastZoomRepair=0;
  const round=n=>Math.round(Number(n)*100)/100;
  const fmt=n=>round(n).toFixed(round(n)%1===0?0:2)+'×';
  function save(){try{localStorage.setItem(KEY,JSON.stringify(saved))}catch{}}
@@ -158,6 +158,64 @@ const CameraSettings=(()=>{
    }
   }finally{zoomBusy=false}
  }
+ // Make the settings preview and subsequent scans use the same browser-exposed
+ // rear camera when possible. Auto-facingMode can pick a different lens each time.
+ function rememberPreviewCamera(){
+  if(saved.deviceId!=='auto'||modal!=='camera-settings')return;
+  const id=trackSettings(scanner).deviceId;
+  if(!id||!devices.some(d=>d.id===id))return;
+  saved.deviceId=id;
+  const selector=$('#camera-device');if(selector)selector.value=id;
+  const note=$('#camera-device-note');
+  if(note)note.textContent='This rear camera is selected for subsequent scans, so the saved zoom is applied to the same camera.';
+ }
+ function clearZoomWatch(){
+  for(const timer of zoomWatchTimers)clearTimeout(timer);
+  zoomWatchTimers=[];
+  lastZoomRepair=0;
+ }
+ // iPhone Safari may readjust its camera after the scanner has become live.
+ // Recheck actual MediaStreamTrack zoom; apply the preference again if it drifts.
+ async function maintainZoom(instance,{force=false}={}){
+  if(instance!==scanner||cameraState!=='live'||saved.zoom<=1.05||zoomBusy||zoomWatchBusy)return;
+  const range=supportedZoom(instance);
+  if(!range)return;
+  const target=Math.min(range.max,Math.max(range.min,saved.zoom));
+  const observed=Number(trackSettings(instance).zoom);
+  const readable=Number.isFinite(observed)&&observed>0;
+  const drift=readable&&Math.abs(observed-target)>0.09;
+  if(!force&&!drift)return;
+  if(Date.now()-lastZoomRepair<550)return;
+  lastZoomRepair=Date.now();
+  zoomWatchBusy=true;
+  try{
+   await applyActualZoom(target,instance,{persist:false});
+  }catch(err){
+   if(modal==='camera-settings')status('Camera zoom could not be held: '+String(err?.message||err));
+  }finally{zoomWatchBusy=false}
+  updateZoomBadge(instance);
+ }
+ function updateZoomBadge(instance){
+  if(instance!==scanner||cameraState!=='live')return;
+  const badge=$('#camera-badge');
+  if(!badge)return;
+  const actual=Number(trackSettings(instance).zoom);
+  if(saved.zoom>1.05&&Number.isFinite(actual)&&actual>0)badge.textContent='CAMERA ON · '+fmt(actual);
+ }
+ function watchZoom(instance){
+  clearZoomWatch();
+  if(saved.zoom<=1.05)return;
+  // Apply after Safari's initial autofocus/lens handoff, not only at start().
+  for(const delay of [800,1850,3250]){
+   zoomWatchTimers.push(setTimeout(()=>maintainZoom(instance,{force:true}),delay));
+  }
+ }
+ function monitor(instance){
+  if(instance!==scanner||cameraState!=='live')return;
+  updateZoomBadge(instance);
+  void maintainZoom(instance);
+ }
+ function onStopped(){clearZoomWatch();}
  function setZoom(value){
   const requested=Number(value);
   if(!Number.isFinite(requested)||!zoomRange)return;
@@ -165,7 +223,13 @@ const CameraSettings=(()=>{
   const label=$('#camera-zoom-value'),slider=$('#camera-zoom');
   if(label)label.textContent=fmt(z);
   if(slider)slider.value=String(z);
-  zoomRequested=z;processZoomChanges();
+  // Save before awaiting applyVideoConstraints: navigating away immediately
+  // after tapping 2× previously left the saved preference at 1×.
+  saved.zoom=z;
+  if(z>1.05)rememberPreviewCamera();
+  save();
+  zoomRequested=z;
+  void processZoomChanges();
  }
  async function chooseCamera(cameraId){
   if(modal!=='camera-settings')return;
@@ -195,6 +259,7 @@ const CameraSettings=(()=>{
     catch(e){if(modal==='camera-settings')status('Zoom could not be restored: '+String(e?.message||e))}
    }
   }
+  watchZoom(instance);
   if(modal==='camera-settings'){
    updateZoomUI(instance);
    if(!range)status('Camera live. Zoom is not exposed on this camera/browser; try selecting another rear camera.');
@@ -203,17 +268,17 @@ const CameraSettings=(()=>{
  }
  function start(){
   if(modal!=='camera-settings')return;
-  zoomRange=null;activeSettingsReader=null;
+  zoomRange=null;
   startCamera();
  }
  function reset(){
   if(modal!=='camera-settings')return;
-  saved={...defaults};save();zoomRange=null;
+  saved={...defaults};save();zoomRange=null;clearZoomWatch();
   status('Restoring default rear camera and 1× zoom…');
   stopCamera().then(()=>{if(modal==='camera-settings')startCamera()});
  }
  function noteError(err){
   if(modal==='camera-settings')status('Camera could not start: '+String(err?.message||err)+'. Try Defaults or allow camera access.');
  }
- return {html,cameraConstraint,formats,chooseFormat,onStarted,start,chooseCamera,setZoom,reset,noteError,capabilities,trackSettings};
+ return {html,cameraConstraint,formats,chooseFormat,onStarted,onStopped,monitor,start,chooseCamera,setZoom,reset,noteError,capabilities,trackSettings};
 })();
