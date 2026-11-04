@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.0.3';
+const VERSION='1.0.4';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -122,7 +122,7 @@ function refreshLinkingAfterScan(){
  const pills=$$('.pillrow .pill');if(pills[0])pills[0].textContent=`${waiting().length} awaiting`;if(pills[1])pills[1].textContent=`${linked().length} linked`;if(pills[2])pills[2].textContent=`${noSample().length} no sample`;
  if(!waiting().length){$('#awaiting-section')?.remove();}
 }
-function scanStatus(message,isError=false){const el=$('#scan-status');if(el){el.textContent=message;el.classList.toggle('error',isError);if(page==='linking')el.hidden=!isError;}updateDebug();}
+function scanStatus(message,isError=false){const el=modal==='capture'?$('#capture-status'):$('#scan-status');if(el){el.textContent=message;el.classList.toggle('error',isError);if(page==='linking'||modal==='capture')el.hidden=!isError;}updateDebug();}
 function flash(){const e=$('#scan-affirm');if(!e)return;e.textContent=page==='boxes'?'✓ BOX RECORDED':'✓ LINKED';e.hidden=false;setTimeout(()=>{if(e.isConnected)e.hidden=true},520);}
 function linkSample(raw,specificUid=''){
  const code=String(raw??'').trim();if(!code){toast('Enter a Sample ID');return false}
@@ -145,7 +145,7 @@ function boxScan(raw){const code=String(raw||'').trim();if(!code)return false;if
 let scanner=null,scannerMode='',cameraState='off',cameraGeneration=0,stopping=Promise.resolve(),loadingLibrary=null;
 let lastScanId='',lastScanTime=0,lastError='',lastDetected='';
 let scanAttempts=0,scanError='',decoderSource='',scanSuccessCount=0,videoTrackState='—',frameDebugTimer=0,frameTestBusy=false;
-function getScannerVideo(){return $('#qr-reader video')}
+function getScannerVideo(){return modal==='capture'?$('#capture-reader video'):$('#qr-reader video')}
 function readVideoTrack(){try{const v=getScannerVideo(),t=v?.srcObject?.getVideoTracks?.()[0],s=t?.getSettings?.()||{};return `${t?.readyState||'none'}${s.width&&s.height?` · ${s.width}×${s.height}`:''}${s.facingMode?` · ${s.facingMode}`:''}`}catch{return 'unknown'}}
 function checkCameraVideo(){const v=getScannerVideo();return `${v?.videoWidth||0} × ${v?.videoHeight||0}${v?` · ready ${v.readyState} · paused ${v.paused}`:''}`}
 
@@ -232,14 +232,21 @@ async function testLiveFrame(){
   if(button.isConnected){button.disabled=false;button.textContent=label;}
  }
 }
-function updateCameraButton(){const e=$('[data-action="camera-toggle"]');if(e)e.textContent=cameraState==='live'?'STOP CAMERA':cameraState==='starting'?'STARTING…':'START CAMERA';const label=$('#camera-badge');if(label)label.textContent=cameraState==='live'?'CAMERA ON':cameraState==='starting'?'STARTING':'CAMERA OFF';updateDebug();}
+function updateCameraButton(){const e=$('[data-action="camera-toggle"]');if(e)e.textContent=cameraState==='live'?'STOP CAMERA':cameraState==='starting'?'STARTING…':'START CAMERA';const label=$('#camera-badge');if(label)label.textContent=cameraState==='live'?'CAMERA ON':cameraState==='starting'?'STARTING':'CAMERA OFF';const capture=$('#capture-badge');if(capture)capture.textContent=cameraState==='live'?'CAMERA ON':cameraState==='starting'?'CAMERA STARTING':'CAMERA OFF';updateDebug();}
 function onQrDecoded(value){
- if(page!=='linking'&&page!=='boxes'||modal||!scanner)return;
+ const capturing=modal==='capture'&&!!selectedUid&&data.phase==='linking';
+ if(!scanner||(!capturing&&(modal||(page!=='linking'&&page!=='boxes'))))return;
  const code=String(value??'').trim();if(!code)return;
  const now=Date.now();lastDetected=code;scanSuccessCount++;scanError='';updateDebug();
  if(code===lastScanId&&now-lastScanTime<1100)return;
  lastScanId=code;lastScanTime=now;
- if(page==='boxes')boxScan(code);else linkSample(code);
+ if(capturing){
+  const uid=selectedUid;
+  if(linkSample(code,uid)){
+   closeModal(false);render();
+   if(page==='linking'&&waiting().length)startCamera();
+  }
+ }else if(page==='boxes')boxScan(code);else linkSample(code);
 }
 async function stopCamera(){
  const prev=scanner;const generation=++cameraGeneration;scanner=null;scannerMode='';cameraState='off';clearInterval(frameDebugTimer);frameDebugTimer=0;updateCameraButton();
@@ -250,20 +257,24 @@ async function stopCamera(){
 }
 async function startCamera(){
  if(scanner||cameraState==='starting')return;
- if(page==='linking'&&(data.phase!=='linking'||!waiting().length))return;
- if(page!=='linking'&&page!=='boxes')return;
- if(!$('#qr-reader'))return;
+ const capturing=modal==='capture'&&!!selectedUid&&data.phase==='linking';
+ if(!capturing&&page==='linking'&&(data.phase!=='linking'||!waiting().length))return;
+ if(!capturing&&page!=='linking'&&page!=='boxes')return;
+ if(modal&&!capturing)return;
+ const readerId=capturing?'capture-reader':'qr-reader';
+ const reader=document.getElementById(readerId);
+ if(!reader)return;
  const generation=++cameraGeneration;cameraState='starting';lastError='';scanError='';scanAttempts=0;scanSuccessCount=0;updateCameraButton();scanStatus('Loading QR decoder…');
  let opened=null;
  try{
   await stopping.catch(()=>{});
   await loadLibrary();
-  if(generation!==cameraGeneration||!$('#qr-reader'))return;
+  if(generation!==cameraGeneration||!reader.isConnected)return;
   if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)throw Error('Camera requires HTTPS and permission in Safari.');
   // Same exact tested options: QR_CODE = numeric zero, NEVER truthiness-filter it.
   const format=Html5QrcodeSupportedFormats.QR_CODE;
-  $('#qr-reader').replaceChildren();
-  opened=new Html5Qrcode('qr-reader',{formatsToSupport:[format],useBarCodeDetectorIfSupported:false,verbose:false});
+  reader.replaceChildren();
+  opened=new Html5Qrcode(readerId,{formatsToSupport:[format],useBarCodeDetectorIfSupported:false,verbose:false});
   scanner=opened;scannerMode=page;
   scanStatus('Asking iPhone for rear camera…');
   await opened.start({facingMode:'environment'},{fps:10},text=>{
@@ -279,8 +290,8 @@ async function startCamera(){
   if(generation!==cameraGeneration||scanner!==opened){try{await opened.stop()}catch{}try{await opened.clear()}catch{}return}
   cameraState='live';
   $('#camera-retry')?.setAttribute('hidden','');
-  $('#camera-placeholder')?.setAttribute('hidden','');
-  const video=$('#qr-reader video');if(video){video.setAttribute('playsinline','');video.muted=true}
+  (capturing?$('#capture-placeholder'):$('#camera-placeholder'))?.setAttribute('hidden','');
+  const video=reader.querySelector('video');if(video){video.setAttribute('playsinline','');video.muted=true}
   updateCameraButton();scanStatus('CAMERA LIVE — point at the next QR code');
   // Only update the diagnostics, never re-render the camera or animal list.
   clearInterval(frameDebugTimer);
@@ -289,7 +300,7 @@ async function startCamera(){
   if(generation!==cameraGeneration)return;
   lastError=String(err?.message||err);cameraState='off';scanner=null;scannerMode='';
   if(opened){try{await opened.stop()}catch{}try{await opened.clear()}catch{}}
-  updateCameraButton();scanStatus('CAMERA ERROR — '+lastError,true);$('#camera-retry')?.removeAttribute('hidden');
+  updateCameraButton();scanStatus('CAMERA ERROR — '+lastError,true);(capturing?$('#capture-retry'):$('#camera-retry'))?.removeAttribute('hidden');
  }
 }
 async function navigate(to,{autoCamera=false}={}){
@@ -305,14 +316,27 @@ function openModal(name,which=''){
  if(name==='add-animal')html=`<h2>Add cow</h2><p class="hint">Enter the line number written on the pot lid.</p><label class="field-label">ANIMAL LINE NUMBER</label><input class="input" id="new-line" maxlength="25" autocomplete="off" inputmode="numeric" placeholder="e.g. 00207"><label class="field-label">YIELD (kg) ${data.yields?'':'(optional)'}</label><input class="input" id="new-yield" type="number" min="0" step="0.1" inputmode="decimal" placeholder="e.g. 14.2"><div class="buttons">${btn('DONE','modal-close','outline')}${btn('ADD COW','save-animal','primary')}</div>`;
  if(name==='manual')html=`<h2>${page==='boxes'?'Enter Box ID':'Enter Sample ID'}</h2><p class="hint">Manual entry is a fallback; the camera should scan continuously during normal linking.</p><label class="field-label">${page==='boxes'?'BOX ID':'SAMPLE ID'}</label><input class="input" id="manual-id" autocomplete="off" placeholder="Scan code value"><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('LINK','save-manual','secondary')}</div>`;
  if(name==='animal'&&animal){html=`<h2>Animal ${safe(animal.line)}</h2><div class="notice">Status: ${animal.sample?'Linked to '+safe(animal.sample):animal.noSampleReason?'No sample — '+safe(animal.noSampleReason):'Awaiting sample'}</div>${!animal.sample&&!animal.noSampleReason&&data.phase==='linking'?btn('TYPE SAMPLE ID','type-animal-sample','secondary wide'):''}<label class="field-label">LINE NUMBER</label><input class="input" id="animal-line" value="${safe(animal.line)}"><label class="field-label">YIELD (kg)</label><input class="input" id="animal-yield" type="number" step="0.1" min="0" value="${safe(animal.yield)}"><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('SAVE DETAILS','save-animal-details','secondary')}</div>${animal.sample?btn('REMOVE SAMPLE LINK','unlink-animal','outline wide'):!animal.noSampleReason?btn('MARK NO SAMPLE','no-sample','soft wide'):btn('UNDO NO SAMPLE','undo-no-sample','soft wide')}${btn('REMOVE ANIMAL','remove-animal','danger wide')}`;}
- if(name==='manual-animal'&&animal)html=`<h2>Sample capture · ${safe(animal.line)}</h2><p class="hint">Manually enter this animal's Sample ID if its QR code cannot be read.</p><label class="field-label">SAMPLE ID</label><input class="input" id="manual-id" inputmode="numeric" autocomplete="off" placeholder="Enter Sample ID"><div class="buttons">${btn('BACK TO SCAN','modal-close','outline')}${btn('LINK SAMPLE','link-animal-sample','secondary')}</div>`;
+ if(name==='manual-animal'&&animal)html=`<h2>Sample capture · ${safe(animal.line)}</h2><p class="hint">Manually enter this animal's Sample ID if its QR code cannot be read.</p><label class="field-label">SAMPLE ID</label><input class="input" id="manual-id" inputmode="numeric" autocomplete="off" placeholder="Enter Sample ID"><div class="buttons">${btn('BACK TO SCAN','back-to-capture','outline')}${btn('LINK SAMPLE','link-animal-sample','secondary')}</div>`;
+ if(name==='capture'&&animal){
+  const position=animals().indexOf(animal)+1;
+  html=`<div class="capture-grip"><button type="button" data-action="modal-close" aria-label="Close sample capture"><span></span></button></div>
+  <div class="capture-top"><div><div class="capture-label">LIST POSITION ${position}</div><div class="capture-line">${safe(animal.line)}</div></div><div class="capture-top-right"><div class="capture-status-pill">Awaiting sample</div><div class="capture-camera-indicator"><span class="capture-dot"></span><span id="capture-badge">CAMERA STARTING</span></div></div></div>
+  <div class="capture-camera"><div class="capture-camera-placeholder" id="capture-placeholder">Starting camera…</div><div class="capture-reader" id="capture-reader"></div><div class="capture-camera-hud"><div class="capture-camera-title">SCAN SAMPLE POT <span class="capture-camera-pill">● CAMERA ON</span></div><div class="capture-finder"></div></div><div id="capture-status" class="capture-error" hidden></div><button id="capture-retry" class="capture-retry" type="button" data-action="retry-camera" hidden>RETRY CAMERA</button></div>
+  <div class="capture-actions">
+   ${btn('REMOVE FROM LIST','capture-remove','outline capture-remove')}
+   ${btn('TYPE SAMPLE ID','type-animal-sample','outline')}
+   <button class="btn outline" type="button" disabled>DELETE SAMPLE ID</button>
+   ${btn('ANIMAL DETAILS','capture-details','outline')}
+   <button class="btn outline capture-add-test" type="button" disabled>+ ADD TEST</button>
+  </div>`;
+ }
  if(name==='no-sample'&&animal)html=`<h2>No sample: ${safe(animal.line)}</h2><label class="field-label">REASON (OPTIONAL)</label><select class="input" id="no-sample-reason"><option>Not sampled</option><option>Animal absent</option><option>Sample lost</option><option>Insufficient milk</option><option>Other</option></select><div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','save-no-sample','secondary')}</div>`;
  if(name==='confirm-linking')html=`<h2>All samples linked?</h2><p class="hint">${waiting().length?`${waiting().length} animals are still awaiting samples. Link them or mark them as No sample before confirming.`:'All animals have been dealt with. Confirm this stage to continue to sample boxes.'}</p>${dupLines().size?`<div class="notice warning">Duplicate animal line numbers need resolving first.</div>`:''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
  if(name==='confirm-close')html=`<h2>Close sampling session?</h2><p class="hint">Closing makes this session read-only. Data is not sent to NMR. Export the JSON if you need a copy.</p><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('CLOSE SESSION','do-close','danger')}</div>`;
- $('#modal-root').innerHTML=`<div class="modal-layer" data-action="backdrop"><section class="sheet" role="dialog" aria-modal="true"><div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>${html}</section></div>`;
- const focus=({ 'add-animal':'new-line',manual:'manual-id','manual-animal':'manual-id'})[name];if(focus)$('#'+focus)?.focus();
+ $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':'Post-milking'}">${name==='capture'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
+ const focus=({ 'add-animal':'new-line',manual:'manual-id','manual-animal':'manual-id'})[name];if(focus)$('#'+focus)?.focus();if(name==='capture')startCamera();
 }
-function closeModal(resume=true){modal='';selectedUid='';$('#modal-root').replaceChildren();if(resume&&((page==='linking'&&data.phase==='linking'&&waiting().length)||page==='boxes'))startCamera();}
+function closeModal(resume=true){if(modal==='capture')stopCamera();modal='';selectedUid='';$('#modal-root').replaceChildren();if(resume&&((page==='linking'&&data.phase==='linking'&&waiting().length)||page==='boxes'))startCamera();}
 function addDemo(){if(animals().length){toast('Demo animals can be loaded only into an empty list.');return}for(const [line,yieldKg] of demo)data.animals.push({uid:uid(),line,yield:yieldKg,sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false});store();closeModal(false);page='linking';render();toast('Five demo animals added.');}
 function makeAnimal(){const line=$('#new-line')?.value.trim()||'',yieldKg=$('#new-yield')?.value.trim()||'';if(!line||!/^[-\w]{1,25}$/.test(line))return toast('Enter a valid animal line number');if(animals().some(a=>a.line===line))return toast('Animal already in this list');if(yieldKg!==''&&(!Number.isFinite(+yieldKg)||+yieldKg<0))return toast('Invalid milk yield');
  data.animals.push({uid:uid(),line,yield:yieldKg,sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false});if(data.phase==='setup')data.phase='adding';store();closeModal(false);render();openModal('add-animal');toast(`${line} added`);}
@@ -344,9 +368,12 @@ function doAction(action,button){
  case 'test-frame':testLiveFrame();break;
  case 'manual-sample':openModal('manual');break;
  case 'type-animal-sample':openModal('manual-animal',selectedUid);break;
- case 'link-animal-sample':{const ok=linkSample($('#manual-id')?.value||'',selectedUid);if(ok){closeModal(false);if(page==='linking'&&waiting().length)startCamera();}break;}
+ case 'back-to-capture':openModal('capture',selectedUid);break;
+ case 'capture-details':openModal('animal',selectedUid);break;
+ case 'capture-remove':{const a=animals().find(x=>x.uid===selectedUid);if(!a)return;a.removed=true;store();closeModal(false);render();if(page==='linking'&&waiting().length)startCamera();break;}
+ case 'link-animal-sample':{const ok=linkSample($('#manual-id')?.value||'',selectedUid);if(ok){closeModal(false);render();if(page==='linking'&&waiting().length)startCamera();}break;}
  case 'save-manual':{const v=$('#manual-id')?.value||'';const ok=page==='boxes'?boxScan(v):linkSample(v);if(ok){closeModal(false);if(page==='linking'&&waiting().length||page==='boxes')startCamera();}break;}
- case 'animal':selectedUid=button.dataset.uid;openModal('animal',selectedUid);break;
+ case 'animal':{const a=animals().find(x=>x.uid===button.dataset.uid);if(!a)return;selectedUid=a.uid;openModal(data.phase==='linking'&&!a.sample&&!a.noSampleReason&&(page==='linking'||page==='animals')?'capture':'animal',a.uid);break;}
  case 'save-animal-details':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;const line=$('#animal-line').value.trim(),yieldKg=$('#animal-yield').value.trim();if(!/^[-\w]{1,25}$/.test(line)||animals().some(b=>b!==a&&b.line===line))return toast('Invalid or duplicate animal line');if(yieldKg!==''&&(!Number.isFinite(+yieldKg)||+yieldKg<0))return toast('Invalid yield');a.line=line;a.yield=yieldKg;store();closeModal(false);render();if(page==='linking'&&data.phase==='linking'&&waiting().length)startCamera();break;}
  case 'unlink-animal':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.sample='';a.linkedSequence=0;a.linkedAt='';if(data.phase==='confirmed'){data.phase='linking';data.boxesConfirmed=false}store();closeModal(false);render();if(page==='linking')startCamera();break;}
  case 'no-sample':openModal('no-sample',selectedUid);break;
