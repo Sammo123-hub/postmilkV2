@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#0d1b2a">
+<title>Camera & QR diagnostic · Postmilk v0.4.3</title>
+<style>
+:root{font-family:system-ui,-apple-system,Arial,sans-serif;background:#f4f7f9;color:#0d1b2a}*{box-sizing:border-box}body{margin:0}
+header{background:#0d1b2a;color:white;padding:max(16px,env(safe-area-inset-top)) 16px 14px}h1{font-size:22px;margin:0 0 7px}main{padding:14px;max-width:720px;margin:auto}.panel{background:white;border:1px solid #d8e3ea;border-radius:9px;padding:13px;margin-bottom:12px}.label{font-size:12px;text-transform:uppercase;color:#53798c;font-weight:800;letter-spacing:.07em}.intro{font-size:13px;line-height:1.5;color:#435d69;margin:8px 0}.camera-frame{position:relative;display:block;width:100%;height:clamp(225px,43dvh,420px);background:#1e242b;border-radius:7px;overflow:hidden;margin:12px 0 10px}
+#native-video{display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#1e242b;z-index:2}
+#reader{position:absolute;inset:0;width:100%;height:100%;z-index:3;overflow:hidden}
+#reader video{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;background:#1e242b!important;max-width:none!important}
+#reader>div{max-width:100%}.placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:18px;color:#cedce5;font-size:14px;z-index:1;pointer-events:none}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}button,.back{border:1px solid #0d1b2a;border-radius:6px;padding:12px 9px;min-height:47px;background:#0d1b2a;color:#fff;font:700 13px system-ui;text-decoration:none;cursor:pointer;text-align:center}button.alt{background:white;color:#0d1b2a}button:disabled{opacity:.4;cursor:default}
+.status{padding:12px;background:#e8f2f9;border-left:4px solid #2a7aaa;font-size:13px;line-height:1.5;overflow-wrap:anywhere}.value{font-weight:800;font-size:25px;word-break:break-all}.good{color:#007a5c}.bad{color:#aa254b}.meta{white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.55 ui-monospace,monospace;color:#5a6f7b}.note{font-size:12px;color:#526d79;line-height:1.5}.file{position:absolute;left:-9999px;width:1px;height:1px}.bar{display:flex;justify-content:space-between;align-items:center;gap:6px}
+</style>
+</head><body>
+<header><h1>Camera & QR test</h1><div style="font-size:12px;color:#b5d0dc">Postmilk v0.4.3 · Test camera before barcode decoding</div></header>
+<main>
+<section class="panel">
+<div class="bar"><strong>1. Test the camera</strong><span class="label">No QR library required</span></div>
+<p class="intro">Press <b>TEST CAMERA</b>. You should see live video here. This tests the iPhone camera independently of the barcode scanner.</p>
+<div class="camera-frame" id="camera-frame"><div class="placeholder" id="placeholder">No live video yet</div><video id="native-video" autoplay playsinline muted></video><div id="reader"></div></div>
+<div class="controls"><button id="native-start">TEST CAMERA</button><button class="alt" id="stop">STOP CAMERA</button><button id="qr-start">2. START QR SCANNER</button><button class="alt" id="photo">TAKE PHOTO</button></div>
+<input id="photo-input" class="file" type="file" accept="image/*" capture="environment">
+<div class="status" id="status" role="status">Ready. Press TEST CAMERA first.</div>
+</section>
+<section class="panel"><div class="label">Last decoded QR code</div><div class="value" id="value">—</div><div id="details" class="note">No barcode decoded yet.</div></section>
+<section class="panel"><h2 style="font-size:16px">Technical information</h2><div id="technical" class="meta"></div><p class="note">Please screenshot the camera preview and status message if it fails. This test does not upload photos or video to a server.</p><a class="back" href="./">BACK TO SAMPLING APP</a></section>
+</main>
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const video=$('#native-video');
+let stream=null,scanner=null,active='none',generation=0,scriptLoading=null,lastText='';
+const errors=[];
+function log(t){errors.push(String(t));if(errors.length>10)errors.shift();updateTechnical()}
+function updateTechnical(){
+ const tracks=stream?.getVideoTracks()||[];
+ let settings={};try{settings=tracks[0]?.getSettings?.()||{}}catch{}
+ $('#technical').textContent=[
+  `secureContext: ${window.isSecureContext}`,
+  `browserCameraAPI: ${!!navigator.mediaDevices?.getUserMedia}`,
+  `nativeVideo: ${video.videoWidth}x${video.videoHeight}; readyState ${video.readyState}; paused ${video.paused}`,
+  `stream: ${!!stream}; tracks: ${tracks.map(t=>t.readyState).join(',')||'none'}`,
+  `cameraSettings: ${JSON.stringify({width:settings.width,height:settings.height,facingMode:settings.facingMode,deviceId:settings.deviceId?'available':undefined})}`,
+  `scannerLibrary: ${typeof Html5Qrcode==='function'?'loaded':'not loaded'}`,
+  `view: ${active}`,
+  `lastError: ${errors.slice(-2).join(' | ')||'none'}`
+ ].join('\n');
+}
+function status(t){$('#status').textContent=t;updateTechnical()}
+function stopNative(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.pause();video.srcObject=null;video.style.display='none'}
+async function stopScanner(){if(scanner){const old=scanner;scanner=null;try{await old.stop()}catch{}try{await old.clear()}catch{}}}
+async function stopAll(){++generation;stopNative();await stopScanner();active='none';$('#reader').replaceChildren();$('#placeholder').style.display='flex';updateTechnical()}
+async function startNative(){
+ const token=++generation;
+ // Direct user-click camera request; do not wait for an external scanner download first.
+ stopNative();if(scanner)await stopScanner();if(token!==generation)return;
+ $('#reader').replaceChildren();$('#placeholder').style.display='flex';
+ if(!navigator.mediaDevices?.getUserMedia){status('Camera API unavailable in this browser. Open the HTTPS site directly in Safari.');return}
+ if(!window.isSecureContext){status('Camera requires HTTPS. Open the Vercel HTTPS URL.');return}
+ active='camera';status('Asking iPhone for camera access…');
+ try{
+  stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});
+  if(token!==generation){stopNative();return}
+  video.srcObject=stream;video.style.display='block';video.setAttribute('playsinline','');
+  await video.play();
+  $('#placeholder').style.display='none';
+  const w=video.videoWidth,h=video.videoHeight;
+  status(w&&h?`CAMERA WORKING — live video ${w} × ${h}. Now press 2. START QR SCANNER to check decoding.`:'Camera permission granted, but video has no frames yet. See Technical information.');
+ }catch(e){stopNative();active='none';const message=`${e?.name||'Error'}: ${e?.message||e}`;log(message);status('CAMERA ERROR — '+message+'. Check Safari camera permission, or close other camera apps.');}
+}
+function loadOne(src){return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(Error('Load failed: '+src));document.head.append(s)})}
+async function loadLibrary(){if(typeof Html5Qrcode==='function')return;if(scriptLoading)return scriptLoading;
+ scriptLoading=(async()=>{for(const src of ['https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js','https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js']){try{await loadOne(src);if(typeof Html5Qrcode==='function')return}catch(e){log(e.message)}}throw Error('Could not load the barcode scanning library. Check internet connection.');})();
+ try{await scriptLoading}finally{scriptLoading=null}
+}
+function decoded(code,from){const text=String(code||'').trim();if(!text)return;lastText=text;$('#value').textContent=text;$('#value').className='value good';$('#details').textContent=`Decoded using ${from} at ${new Date().toLocaleTimeString()}`;status(`SUCCESS — decoded ${text} from ${from}.`)}
+async function startQR(){
+ const token=++generation;stopNative();await stopScanner();if(token!==generation)return;
+ active='qr';$('#reader').replaceChildren();$('#placeholder').style.display='flex';status('Loading QR decoder…');
+ try{
+  await loadLibrary();if(token!==generation)return;
+  // QR-only decoding avoids slower scanning of formats not under test.
+  const formats=Html5QrcodeSupportedFormats;
+  scanner=new Html5Qrcode('reader',{formatsToSupport:[formats.QR_CODE],useBarCodeDetectorIfSupported:false,verbose:false});
+  status('Requesting camera for QR scanner…');
+  const current=scanner;
+  await current.start({facingMode:'environment'},{fps:10},text=>{if(scanner===current&&token===generation)decoded(text,'QR scanner')},()=>{});
+  if(token!==generation){try{await current.stop()}catch{}try{await current.clear()}catch{}return}
+  $('#placeholder').style.display='none';
+  const v=$('#reader video');
+  if(v){v.setAttribute('playsinline','');v.muted=true;}
+  const width=v?.videoWidth||0,height=v?.videoHeight||0;
+  status(`QR SCANNER RUNNING — video ${width} × ${height}. If picture is black while TEST CAMERA worked, the decoder's camera startup is failing.`);
+ }catch(e){log(`${e?.name||'Error'}: ${e?.message||e}`);status('QR SCANNER ERROR — '+(e?.message||String(e)));}
+}
+async function photo(){const file=$('#photo-input').files?.[0];if(!file)return;const token=++generation;stopNative();await stopScanner();if(token!==generation)return;
+ $('#reader').replaceChildren();active='photo';status('Decoding selected photo…');
+ try{await loadLibrary();if(token!==generation)return;const f=Html5QrcodeSupportedFormats;const r=new Html5Qrcode('reader',{formatsToSupport:[f.QR_CODE],verbose:false});const result=await r.scanFile(file,true);decoded(result,'photo');try{await r.clear()}catch{}}catch(e){log(e.message||String(e));status('Photo scan failed: '+(e?.message||e))}
+}
+$('#native-start').addEventListener('click',startNative);
+$('#qr-start').addEventListener('click',startQR);
+$('#stop').addEventListener('click',()=>{stopAll().then(()=>status('Camera stopped.'))});
+$('#photo').addEventListener('click',()=>$('#photo-input').click());
+$('#photo-input').addEventListener('change',photo);
+window.addEventListener('pagehide',stopAll);
+updateTechnical();
+</script>
+</body></html>
