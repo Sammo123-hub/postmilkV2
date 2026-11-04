@@ -65,9 +65,9 @@ const HerdDemo=(()=>{
  function picker(){
   return '<div class="herd-picker">'+
    sessionCountRow()+
-   '<div class="herd-pick-top"><label class="herd-section-label" for="herd-search">LINE NUMBER · ADD TO LIST</label><button type="button" data-action="herd-done" class="herd-done">DONE</button></div>'+
+   '<div class="herd-pick-top"><label class="herd-section-label" for="herd-search">LINE NUMBER · ADD TO LIST</label></div>'+
    '<div class="herd-current-code"><input id="herd-search" type="text" readonly inputmode="none" value="'+safe(query)+'" placeholder="Line number" aria-label="Animal line number">'+
-   '<button type="button" data-action="herd-clear" aria-label="Clear line number">CLR</button></div>'+
+   '<button type="button" data-action="herd-done" class="herd-done">DONE</button></div>'+
    '<div class="herd-result-scroll" id="herd-results">'+searchResults()+'</div>'+
    padHtml()+
    '</div>';
