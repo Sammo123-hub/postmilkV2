@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.3.1';
+const VERSION='1.3.2';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -125,7 +125,7 @@ function scanStatus(message,isError=false){const el=modal==='capture'?$('#captur
 function flash(){const e=$('#scan-affirm');if(!e)return;e.textContent=page==='boxes'?'✓ BOX RECORDED':'✓ LINKED';e.hidden=false;setTimeout(()=>{if(e.isConnected)e.hidden=true},520);}
 function linkSample(raw,specificUid=''){
  const code=String(raw??'').trim();if(!code){toast('Enter a Sample ID');return false}
- if(linked().some(a=>a.sample===code)){scanStatus(`Already linked: ${code} — ignored`);return false}
+ if(linked().some(a=>a.sample===code)){scanStatus(`Code recognised, but Sample ID ${code} is already linked to an animal.`,true);return false}
  const target=specificUid?animals().find(a=>a.uid===specificUid):next();
  if(!target||target.sample||target.noSampleReason){toast('No awaiting animal available');return false}
  target.sample=code;target.linkedSequence=Math.max(0,...linked().map(a=>a.linkedSequence||0))+1;
