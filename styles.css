@@ -56,6 +56,8 @@
 .manual-capture-pad button{min-height:52px;border:1px solid #cbd8df;border-radius:6px;background:#f5f9fb;color:var(--navy);font:700 21px 'DM Sans',Arial,sans-serif}
 .manual-capture-pad button:active{background:#d6ecf6}
 .manual-capture-pad button.manual-clear{color:#c5103a;font:800 17px 'Barlow Condensed',Arial,sans-serif}
+.manual-capture-feedback{padding:10px 12px;border:1.5px solid #e68da5;border-radius:6px;background:#fff0f4;color:#9f1437;font:700 13px/1.4 'DM Sans',Arial,sans-serif;overflow-wrap:anywhere}
+.manual-capture-feedback[hidden]{display:none!important}
 .manual-capture-actions{display:flex;gap:8px}
 .manual-capture-actions .btn{flex:1;font-size:16px;min-height:53px;min-width:0}
 
