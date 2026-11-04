@@ -117,3 +117,31 @@
 .herd-yield{display:flex;flex-direction:column;gap:9px}
 .herd-yield p{font-size:13px;line-height:1.45}
 @media(max-height:700px){.herd-result-scroll{flex-basis:110px}.herd-number-pad button{min-height:34px}}
+
+/* Camera settings — real-track zoom and browser-exposed rear lens selection. */
+.sheet:has(.camera-settings){max-width:470px;max-height:92dvh;overflow-y:auto;padding:11px 15px max(16px,env(safe-area-inset-bottom))}
+.camera-settings{display:flex;flex-direction:column;gap:9px;min-width:0}
+.camera-settings h2{font:800 23px 'DM Sans',Arial,sans-serif;color:var(--navy);margin:1px 0 0}
+.camera-settings-tip{font:500 12px/1.5 'DM Sans',Arial,sans-serif;color:#536c78;margin:0}
+.camera-settings-preview{height:clamp(195px,30dvh,280px);border-radius:7px;background:#222b30;position:relative;overflow:hidden;isolation:isolate}
+#settings-reader{position:absolute;inset:0;width:100%;height:100%;background:#222b30;z-index:1;overflow:hidden}
+#settings-reader>div{max-width:100%!important}
+#settings-reader video{display:block!important;width:100%!important;height:100%!important;object-fit:contain!important;max-width:100%!important;background:#222b30!important}
+.camera-settings-overlay{position:absolute;inset:0;pointer-events:none;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.camera-settings-overlay>span{position:absolute;left:10px;top:9px;font:800 14px 'Barlow Condensed',Arial,sans-serif;letter-spacing:.1em;color:white;text-shadow:0 2px 3px #000}
+.camera-settings-target{width:140px;height:140px;border:2px solid #ffffff99;border-radius:7px;position:relative}
+.camera-settings-target:after{content:"";position:absolute;top:50%;left:-10px;right:-10px;height:2px;background:#e8174a;box-shadow:0 0 6px #e8174a}
+.camera-settings-loading{position:absolute;inset:0;z-index:3;display:grid;place-items:center;color:#c7d7de;padding:16px;font:600 13px 'DM Sans',Arial,sans-serif;text-align:center;pointer-events:none}
+.camera-settings-loading[hidden]{display:none}
+.camera-settings .field-label{font:800 13px 'Barlow Condensed',Arial,sans-serif;letter-spacing:.09em;color:var(--blue);margin:0}
+.camera-settings .input{min-height:47px;font-size:15px}
+.camera-settings-note{font:500 11px/1.45 'DM Sans',Arial,sans-serif;color:#617a85;margin:-5px 0 2px}
+.camera-zoom-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:5px 0 0}
+.camera-zoom-heading strong{color:var(--navy);font:800 20px 'DM Sans',Arial,sans-serif}
+#camera-zoom{width:100%;height:32px;accent-color:#2a7aaa;min-height:32px}
+#camera-zoom:disabled{opacity:.42}
+.camera-zoom-buttons{display:flex;gap:8px}
+.camera-zoom-buttons button{flex:1;border:1.5px solid #93b7c9;border-radius:6px;background:#eef6fb;color:var(--navy);padding:8px;font:800 17px 'Barlow Condensed',Arial,sans-serif;min-height:43px}
+.camera-zoom-buttons button:disabled{opacity:.38}
+.camera-settings-status{border:1px solid #b6d0dc;border-radius:6px;background:#eaf4f9;color:#1f5870;padding:9px 10px;font:600 12px/1.45 'DM Sans',Arial,sans-serif;overflow-wrap:anywhere}
+.camera-settings .buttons .btn{font-size:16px;min-height:49px}
