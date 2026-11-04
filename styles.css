@@ -61,7 +61,7 @@
 .manual-capture-actions{display:flex;gap:8px}
 .manual-capture-actions .btn{flex:1;font-size:16px;min-height:53px;min-width:0}
 
-/* UI-12 Add Animals — 250-animal demo herd search & filtering. */
+/* UI-12 Add Animals — 70-animal demo herd search & filtering. */
 .sheet:has(.herd-picker){max-width:460px;height:min(91dvh,830px);max-height:92dvh;overflow:hidden;padding:9px 14px max(12px,env(safe-area-inset-bottom));gap:0}
 .herd-picker{display:flex;flex-direction:column;gap:7px;min-height:0;overflow:hidden;flex:1}
 .herd-session-counts{display:flex;gap:5px;align-items:center;flex:none;flex-wrap:nowrap;margin:1px 0 9px;min-width:0}
