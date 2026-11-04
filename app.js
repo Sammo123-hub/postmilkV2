@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.2.5';
+const VERSION='1.2.6';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -311,7 +311,7 @@ async function startCamera(){
   opened=new Html5Qrcode(readerId,{formatsToSupport:formats,useBarCodeDetectorIfSupported:false,verbose:false});
   scanner=opened;scannerMode=page;
   scanStatus('Asking iPhone for rear camera…');
-  await opened.start(CameraSettings.cameraConstraint(),{fps:10},text=>{
+  await opened.start(CameraSettings.cameraConstraint(),CameraSettings.scanConfig(),text=>{
    if(generation===cameraGeneration&&scanner===opened)onQrDecoded(text);
   },error=>{
    if(generation!==cameraGeneration||scanner!==opened)return;
