@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.2.8';
+const VERSION='1.3.0';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -281,6 +281,7 @@ function showCaptureLinked(animalUid,sampleId){
  },950);
 }
 async function stopCamera(){
+ FastMatrix.stop();
  CameraSettings.onStopped();
  const prev=scanner;const generation=++cameraGeneration;scanner=null;scannerMode='';cameraState='off';clearInterval(frameDebugTimer);frameDebugTimer=0;updateCameraButton();
  if(!prev)return stopping;
@@ -328,6 +329,13 @@ async function startCamera(){
   const video=reader.querySelector('video');if(video){video.setAttribute('playsinline','');video.muted=true}
   updateCameraButton();scanStatus('CAMERA LIVE — point at the next QR code');
   await CameraSettings.onStarted(opened);
+  // Optional alternative decoder on the SAME running camera. The original JS
+  // decoder continues until WASM is ready, and is restored if WASM fails.
+  if(!settingsMode&&generation===cameraGeneration&&scanner===opened&&CameraSettings.fastMatrixSelected()){
+   await FastMatrix.attach(opened,reader,
+    ()=>generation===cameraGeneration&&scanner===opened,
+    code=>onQrDecoded(code));
+  }
   // Only update the diagnostics, never re-render the camera or animal list.
   clearInterval(frameDebugTimer);
   frameDebugTimer=setInterval(()=>{if(scanner===opened&&generation===cameraGeneration){updateDebug();CameraSettings.monitor(opened);}else{clearInterval(frameDebugTimer);frameDebugTimer=0}},1800);
@@ -493,6 +501,7 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
  if(e.target.id==='camera-device'){CameraSettings.chooseCamera(e.target.value);return;}
  if(e.target.id==='camera-code-format'){CameraSettings.chooseFormat(e.target.value);return;}
+ if(e.target.id==='camera-decoder-engine'){CameraSettings.chooseEngine(e.target.value);return;}
  if(e.target.id==='confirm-boxes'){data.boxesConfirmed=e.target.checked;store();}
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal)closeModal();if(e.key==='Enter'&&e.target.id==='new-line'){e.preventDefault();$('#new-yield')?.focus()}if(e.key==='Enter'&&e.target.id==='manual-id'){e.preventDefault();doAction('save-manual',e.target)}});
