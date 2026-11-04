@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.0.0';
+const VERSION='1.0.1';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -139,32 +139,51 @@ function boxScan(raw){const code=String(raw||'').trim();if(!code)return false;if
 // Matches the actual iPhone-tested standalone QR diagnostic's Html5Qrcode options.
 let scanner=null,scannerMode='',cameraState='off',cameraGeneration=0,stopping=Promise.resolve(),loadingLibrary=null;
 let lastScanId='',lastScanTime=0,lastError='',lastDetected='';
+let scanAttempts=0,scanError='',decoderSource='',scanSuccessCount=0,videoTrackState='—',frameDebugTimer=0;
+function getScannerVideo(){return $('#qr-reader video')}
+function readVideoTrack(){try{const v=getScannerVideo(),t=v?.srcObject?.getVideoTracks?.()[0],s=t?.getSettings?.()||{};return `${t?.readyState||'none'}${s.width&&s.height?` · ${s.width}×${s.height}`:''}${s.facingMode?` · ${s.facingMode}`:''}`}catch{return 'unknown'}}
+function checkCameraVideo(){const v=getScannerVideo();return `${v?.videoWidth||0} × ${v?.videoHeight||0}${v?` · ready ${v.readyState} · paused ${v.paused}`:''}`}
+
 function updateDebug(){const dbg=$('#scan-debug');if(!dbg)return;const v=$('#qr-reader video');const parts=[
  `App: ${VERSION}`,
  `Secure context: ${!!window.isSecureContext}`,
  `Camera API: ${!!navigator.mediaDevices?.getUserMedia}`,
  `QR decoder: ${typeof Html5Qrcode==='function'?'loaded':'not loaded'}`,
  `Camera: ${cameraState}`,
- `Video frames: ${v?.videoWidth||0} × ${v?.videoHeight||0}`,
+ `Video frames: ${checkCameraVideo()}`,
+ `Camera track: ${readVideoTrack()}`,
+ `Decoder source: ${decoderSource||'not loaded'}`,
+ `Decode attempts: ${scanAttempts}`,
+ `Successful reads: ${scanSuccessCount}`,
  `Last detected: ${lastDetected||'—'}`,
- `Last error: ${lastError||'—'}`];dbg.textContent=parts.join('\n');}
+ `Last decoder feedback: ${scanError||'—'}`,
+ `Startup error: ${lastError||'—'}`];dbg.textContent=parts.join('\n');}
+function loadOneScannerScript(url){return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=url;s.onload=resolve;s.onerror=()=>reject(Error('Unable to load '+url));document.head.appendChild(s)})}
 async function loadLibrary(){
- if(typeof Html5Qrcode==='function'&&typeof Html5QrcodeSupportedFormats!=='undefined'&&Html5QrcodeSupportedFormats.QR_CODE!==undefined)return;
+ if(typeof Html5Qrcode==='function'&&typeof Html5QrcodeSupportedFormats!=='undefined'&&Html5QrcodeSupportedFormats.QR_CODE!==undefined){decoderSource ||= 'already present';return;}
  if(loadingLibrary)return loadingLibrary;
- loadingLibrary=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';s.onload=()=>{if(typeof Html5Qrcode==='function')resolve();else reject(Error('QR decoder did not initialise'))};s.onerror=()=>reject(Error('QR decoder could not load; check internet connection'));document.head.append(s)});
+ // Match the diagnostic's on-demand loading sequence, rather than a parser-time deferred script.
+ loadingLibrary=(async()=>{
+  const sources=['https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js','https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'];
+  for(const src of sources){
+   try{await loadOneScannerScript(src);if(typeof Html5Qrcode==='function'&&typeof Html5QrcodeSupportedFormats!=='undefined'){decoderSource=src.split('/')[2];return;}}
+   catch(e){lastError=String(e?.message||e);}
+  }
+  throw Error('QR decoder could not be loaded from either source');
+ })();
  try{await loadingLibrary}finally{loadingLibrary=null}
 }
 function updateCameraButton(){const e=$('[data-action="camera-toggle"]');if(e)e.textContent=cameraState==='live'?'STOP CAMERA':cameraState==='starting'?'STARTING…':'START CAMERA';const label=$('#camera-badge');if(label)label.textContent=cameraState==='live'?'CAMERA ON':cameraState==='starting'?'STARTING':'CAMERA OFF';updateDebug();}
 function onQrDecoded(value){
  if(page!=='linking'&&page!=='boxes'||modal||!scanner)return;
  const code=String(value??'').trim();if(!code)return;
- const now=Date.now();lastDetected=code;updateDebug();
+ const now=Date.now();lastDetected=code;scanSuccessCount++;scanError='';updateDebug();
  if(code===lastScanId&&now-lastScanTime<1100)return;
  lastScanId=code;lastScanTime=now;
  if(page==='boxes')boxScan(code);else linkSample(code);
 }
 async function stopCamera(){
- const prev=scanner;const generation=++cameraGeneration;scanner=null;scannerMode='';cameraState='off';updateCameraButton();
+ const prev=scanner;const generation=++cameraGeneration;scanner=null;scannerMode='';cameraState='off';clearInterval(frameDebugTimer);frameDebugTimer=0;updateCameraButton();
  if(!prev)return stopping;
  stopping=stopping.catch(()=>{}).then(async()=>{try{await prev.stop()}catch{}try{await prev.clear()}catch{}});
  await stopping;
@@ -175,7 +194,7 @@ async function startCamera(){
  if(page==='linking'&&(data.phase!=='linking'||!waiting().length))return;
  if(page!=='linking'&&page!=='boxes')return;
  if(!$('#qr-reader'))return;
- const generation=++cameraGeneration;cameraState='starting';lastError='';updateCameraButton();scanStatus('Loading QR decoder…');
+ const generation=++cameraGeneration;cameraState='starting';lastError='';scanError='';scanAttempts=0;scanSuccessCount=0;updateCameraButton();scanStatus('Loading QR decoder…');
  let opened=null;
  try{
   await stopping.catch(()=>{});
@@ -190,12 +209,22 @@ async function startCamera(){
   scanStatus('Asking iPhone for rear camera…');
   await opened.start({facingMode:'environment'},{fps:10},text=>{
    if(generation===cameraGeneration&&scanner===opened)onQrDecoded(text);
-  },()=>{});
+  },error=>{
+   if(generation!==cameraGeneration||scanner!==opened)return;
+   scanAttempts++;
+   if(scanAttempts===1||scanAttempts%15===0){
+    scanError=String(error?.message||error||'No code recognised').slice(0,220);
+    updateDebug();
+   }
+  });
   if(generation!==cameraGeneration||scanner!==opened){try{await opened.stop()}catch{}try{await opened.clear()}catch{}return}
   cameraState='live';
   $('#camera-placeholder')?.setAttribute('hidden','');
   const video=$('#qr-reader video');if(video){video.setAttribute('playsinline','');video.muted=true}
   updateCameraButton();scanStatus('CAMERA LIVE — point at the next QR code');
+  // Only update the diagnostics, never re-render the camera or animal list.
+  clearInterval(frameDebugTimer);
+  frameDebugTimer=setInterval(()=>{if(scanner===opened&&generation===cameraGeneration)updateDebug();else{clearInterval(frameDebugTimer);frameDebugTimer=0}},1800);
  }catch(err){
   if(generation!==cameraGeneration)return;
   lastError=String(err?.message||err);cameraState='off';scanner=null;scannerMode='';
