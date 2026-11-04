@@ -62,6 +62,13 @@
 /* UI-12 Add Animals — 250-animal demo herd search & filtering. */
 .sheet:has(.herd-picker){max-width:460px;height:min(91dvh,830px);max-height:92dvh;overflow:hidden;padding:9px 14px max(12px,env(safe-area-inset-bottom));gap:0}
 .herd-picker{display:flex;flex-direction:column;gap:7px;min-height:0;overflow:hidden;flex:1}
+.herd-session-counts{display:flex;gap:5px;align-items:center;flex:none;flex-wrap:nowrap;margin:1px 0 9px;min-width:0}
+.herd-session-count{min-width:0;white-space:nowrap;border-radius:20px;border:1px solid #d0dbe0;padding:7px 9px;text-align:center;font:700 clamp(10px,2.7vw,13px) 'DM Sans',Arial,sans-serif;background:#eef1f3;color:#51636d;flex:1}
+.herd-session-count.awaiting{background:var(--pale-red);border-color:#ef99ae;color:#ae1640}
+.herd-session-count.linked{background:var(--pale-green);border-color:#87d6bb;color:#006f50}
+.herd-session-count.no-sample{background:#edf0f1;border-color:#d5dfe3;color:#576c73}
+.herd-close{flex:none;display:grid;place-items:center;width:32px;height:32px;margin-left:1px;padding:0;background:transparent;border:0;color:var(--navy);font:600 27px/1 Arial,sans-serif}
+
 .herd-picker h2,.herd-catalog h2{font:800 23px 'DM Sans',Arial,sans-serif;color:var(--navy);margin:2px 0 0}
 .herd-subtitle{font:400 12px/1.4 'DM Sans',Arial,sans-serif;color:#537080;margin:0 0 3px}
 .herd-pick-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
