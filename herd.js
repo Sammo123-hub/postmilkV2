@@ -1,10 +1,10 @@
 /* Post-milking demo herd and UI-12 Add Animals.
- * Static 250-animal TEST catalogue, separate from the saved sampling session.
+ * Static 70-animal TEST catalogue, separate from the saved sampling session.
  * The catalogue contains no real customer or NMR animal records.
  */
 'use strict';
 const HerdDemo=(()=>{
- const HERD=Object.freeze(Array.from({length:250},(_,i)=>Object.freeze({
+ const HERD=Object.freeze(Array.from({length:70},(_,i)=>Object.freeze({
   id:'TEST-'+String(i+1).padStart(5,'0'),
   line:String(i+1).padStart(5,'0')
  })));
@@ -198,7 +198,7 @@ const HerdDemo=(()=>{
  const counts=()=>HERD.reduce((o,a)=>(o[kind(a.line)]++,o),{available:0,awaiting:0,sampled:0,'no-sample':0});
  function catalogResults(){
   const matching=HERD.filter(a=>(catalogFilter==='all'||kind(a.line)===catalogFilter)&&(!catalogQuery||a.line.includes(catalogQuery)));
-  return '<p class="herd-overflow-note">Showing '+matching.length+' of 250 herd animals. These are test records, not sampling-list entries.</p>'+
+  return '<p class="herd-overflow-note">Showing '+matching.length+' of '+HERD.length+' herd animals. These are test records, not sampling-list entries.</p>'+
   '<div class="herd-catalog-scroll">'+matching.map(a=>{
    const k=kind(a.line),linked=byLine(a.line).find(x=>x.sample);
    return '<div class="herd-catalog-row"><strong>'+a.line+'</strong><span>'+safe(a.id)+'</span><em class="'+k+'">'+words[k]+(linked?' · '+safe(linked.sample):'')+'</em></div>';
@@ -206,9 +206,9 @@ const HerdDemo=(()=>{
  }
  function catalog(){
   const n=counts();
-  const tabs=[['all','ALL · 250'],['available','AVAILABLE · '+n.available],['awaiting','AWAITING · '+n.awaiting],['sampled','SAMPLED · '+n.sampled],['no-sample','NO SAMPLE · '+n['no-sample']]];
-  return '<div class="herd-catalog"><h2>TEST HERD · 250 ANIMALS</h2>'+
-    '<p class="herd-subtitle">Separate from the animals entered into this sampling session. Test-only line numbers 00001–00250.</p>'+
+  const tabs=[['all','ALL · '+HERD.length],['available','AVAILABLE · '+n.available],['awaiting','AWAITING · '+n.awaiting],['sampled','SAMPLED · '+n.sampled],['no-sample','NO SAMPLE · '+n['no-sample']]];
+  return '<div class="herd-catalog"><h2>TEST HERD · 70 ANIMALS</h2>'+
+    '<p class="herd-subtitle">Separate from the animals entered into this sampling session. Test-only line numbers 00001–00070.</p>'+
     '<label class="field-label" for="herd-catalog-search">SEARCH LINE NUMBER</label>'+
     '<input id="herd-catalog-search" type="text" class="input" inputmode="numeric" autocomplete="off" placeholder="e.g. 0016" value="'+safe(catalogQuery)+'">'+
     '<div class="herd-filter-row">'+tabs.map(([k,label])=>'<button type="button" data-action="herd-filter" data-filter="'+k+'" class="'+(k===catalogFilter?'active':'')+'">'+label+'</button>').join('')+'</div>'+
