@@ -1,4 +1,4 @@
-# Post-Milking Sampling — Clean Build v1.0.0
+# Post-Milking Sampling — Clean Build v1.1.0
 
 A **fresh, consolidated, mobile-first application**, designed for a **new GitHub repository and a new Vercel project**. It follows the original post-milking UI specification's main journey (Session Management → add animals → check order → continuous QR linking → confirm → scan boxes → close). It is a functional prototype, not an integration with NMR.
 
@@ -64,3 +64,19 @@ A **fresh, consolidated, mobile-first application**, designed for a **new GitHub
 - `refreshLinkingAfterScan()` modifies only the last linked and awaiting lists; it never rerenders the `#qr-reader` node.
 - QR_CODE enum value is zero, so it is used explicitly and never removed via `.filter(Boolean)`.
 - When porting to production, implement audited authentication, backend sync and server-issued session IDs before processing real customer data.
+
+## UI-12 and 250-animal test herd (v1.1.0)
+
+- A deterministic **test-only herd** of 250 distinct line numbers, `00001` through `00250`, is bundled in `herd.js`. These are **herd catalogue records, not sampling-session animals**. The existing saved session is left unchanged.
+- Open **Main menu → Test herd · 250 animals** to search the full catalogue or filter by Available, Awaiting, Sampled, and No sample. The statuses derive from the current sampling session.
+- **+ ADD COWS** now opens UI-12. Enter part of a line number on the custom number pad to search; tap a matching animal to add it to the **end** of the session list. If yields are required, a yield-entry step follows.
+- Select an already-sampled or already-entered animal to see the duplicate warning. **ADD ANYWAY** appends a separate record, flagged DUPLICATE, without altering earlier records.
+- If no herd animal matches the complete line number, **ADD** uses the number exactly as entered without changing the herd catalogue.
+- **DONE** returns to the order check for initial setup, or resumes normal continuous linking when used during the linking stage.
+- The status **Sampled** is the catalogue-level name for a session animal with a linked Sample ID.
+- **UI-20 / 4.3.5** offers custom digit entry, CLR, backspace and BACK TO SCAN. **LINK SAMPLE** links only the selected animal and briefly shows the 4.3.2 confirmation.
+- The continuous main-screen QR decoder and its working camera configuration are deliberately unchanged.
+
+### Suggested test
+
+Search for `0016` in UI-12 (matches `00160`–`00169`). Add `00164`, capture a sample, and search again: `00164` should appear under **SAMPLED**. Choosing it again should display the duplicate warning. Search for a number outside the catalogue (e.g. `00300`) to test the **ADD exactly as typed** flow.
