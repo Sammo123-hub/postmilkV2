@@ -35,7 +35,7 @@ const CameraSettings=(()=>{
    '<p id="camera-focus-note" class="camera-settings-note">Autofocus is controlled by the camera unless the browser exposes focus controls.</p>'+
    '<label class="field-label" for="camera-code-format">BARCODE TYPE</label>'+
    '<select id="camera-code-format" class="input"><option value="qr">QR codes only</option><option value="dm">Data Matrix only — faster for existing pots</option><option value="qr-dm">QR + Data Matrix — compatible with both</option></select>'+
-   '<p class="camera-settings-note">Data Matrix only checks one format and scans the central area for one pot. Keep the code near the centre. Use QR + Data Matrix if your samples have both types.</p>'+
+   '<p class="camera-settings-note">Data Matrix only scans a small central square to isolate one printed code, even where several repeat around a pot. Keep just one code within the centre guide. Use QR + Data Matrix if your samples have both types.</p>'+
    '<div class="camera-settings-status" id="camera-settings-status" role="status" aria-live="polite">Preparing camera…</div>'+
    '<div class="buttons"><button type="button" class="btn outline" data-action="camera-reset">DEFAULTS</button><button type="button" class="btn secondary" data-action="camera-settings-done">DONE</button></div>'+
    '</div>';
@@ -59,7 +59,7 @@ const CameraSettings=(()=>{
    fps:12,
    disableFlip:true,
    qrbox:(width,height)=>{
-    const side=Math.floor(Math.min(width,height)*0.76);
+    const side=Math.floor(Math.min(width,height)*0.42);
     const w=Math.max(1,Math.min(side,Math.floor(width-1)));
     const h=Math.max(1,Math.min(side,Math.floor(height-1)));
     return {width:w,height:h};
@@ -69,7 +69,7 @@ const CameraSettings=(()=>{
  function chooseFormat(next){
   saved.codeFormat=['qr','qr-dm','dm'].includes(next)?next:'qr';save();
   const message=saved.codeFormat==='dm'
-   ?'Data Matrix only: 12 scan attempts/second, centred scan area, no mirrored-code pass. Keep one pot centred.'
+   ?'Data Matrix only: 12 scan attempts/second, narrow centre scan region. Centre a single printed code and hold steady.'
    :saved.codeFormat==='qr-dm'
    ?'QR and Data Matrix enabled. Combined scanning can be slower than Data Matrix only.'
    :'QR-only scanning selected.';
