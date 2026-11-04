@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.2.2';
+const VERSION='1.2.3';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -288,6 +288,20 @@ async function stopCamera(){
  await stopping;
  if(generation===cameraGeneration){scanStatus('Camera stopped.');updateCameraButton();}
 }
+// Match the visible main scanner panel to the camera's actual frame ratio.
+// The QR decoder still receives the original, uncropped video image.
+function matchMainCameraAspect(video){
+ if(!video)return;
+ const sync=()=>{
+  const panel=$('#camera-panel');
+  if(!panel||!video.isConnected||!video.videoWidth||!video.videoHeight)return;
+  const ratio=video.videoWidth/video.videoHeight;
+  if(Number.isFinite(ratio)&&ratio>0.3&&ratio<3.5)panel.style.aspectRatio=video.videoWidth+' / '+video.videoHeight;
+ };
+ video.addEventListener('loadedmetadata',sync);
+ video.addEventListener('resize',sync);
+ sync();
+}
 async function startCamera(){
  if(scanner||cameraState==='starting')return;
  const capturing=modal==='capture'&&!!selectedUid&&data.phase==='linking';
@@ -325,7 +339,7 @@ async function startCamera(){
   cameraState='live';
   $('#camera-retry')?.setAttribute('hidden','');
   (capturing?$('#capture-placeholder'):$('#camera-placeholder'))?.setAttribute('hidden','');
-  const video=reader.querySelector('video');if(video){video.setAttribute('playsinline','');video.muted=true}
+  const video=reader.querySelector('video');if(video){video.setAttribute('playsinline','');video.muted=true;if(!capturing&&!settingsMode)matchMainCameraAspect(video)}
   updateCameraButton();scanStatus('CAMERA LIVE — point at the next QR code');
   await CameraSettings.onStarted(opened);
   // Only update the diagnostics, never re-render the camera or animal list.
