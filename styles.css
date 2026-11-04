@@ -114,8 +114,32 @@
 .herd-catalog-row em.sampled{color:#a66f00}
 .herd-catalog-row em.awaiting{color:#bc1e45}
 .herd-catalog-row em.no-sample{color:#60747d}
-.herd-yield{display:flex;flex-direction:column;gap:9px}
-.herd-yield p{font-size:13px;line-height:1.45}
+/* UI-24 Yield Capture — mockup in-app decimal keypad, no iOS numeric keyboard. */
+.sheet:has(.herd-yield){width:100%;max-width:460px;max-height:92dvh;border-radius:17px 17px 0 0;overflow-y:auto;padding:9px 15px max(18px,env(safe-area-inset-bottom));gap:0}
+.herd-yield{display:flex;flex-direction:column;gap:10px}
+.yield-grip{width:40px;height:4px;border-radius:4px;background:#cfd8dc;align-self:center;margin:0 0 5px}
+.yield-top{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-bottom:7px}
+.yield-position{font:800 13px 'Barlow Condensed',Arial,sans-serif;letter-spacing:.1em;color:var(--blue)}
+.yield-line{font:800 36px/1.1 'DM Sans',Arial,sans-serif;letter-spacing:.03em;color:var(--navy);margin-top:4px;overflow-wrap:anywhere}
+.yield-status{border:1px solid #f5a3b9;background:#fde8ee;color:#b0103a;border-radius:20px;padding:6px 10px;white-space:nowrap;font:600 12px 'DM Sans',Arial,sans-serif;flex:none;align-self:center}
+.yield-entry-label{font:800 13px 'Barlow Condensed',Arial,sans-serif;letter-spacing:.09em;color:var(--blue);margin-bottom:-5px}
+.yield-display{display:flex;align-items:center;justify-content:space-between;gap:12px;height:64px;flex:none;border:2px solid var(--navy);background:#fff;border-radius:6px;padding:0 15px;overflow:hidden;cursor:default}
+.yield-number{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:700 34px 'DM Sans',Arial,sans-serif;letter-spacing:.035em;color:var(--navy)}
+.yield-placeholder{color:#b0bec5}
+.yield-cursor{display:inline-block;width:2px;height:28px;background:#e8174a;margin-left:3px;vertical-align:-5px}
+.yield-unit{font:600 20px 'DM Sans',Arial,sans-serif;color:#607d8b;flex:none}
+.yield-hint{font:500 12px 'DM Sans',Arial,sans-serif;color:#607d8b;margin:-5px 0 2px}
+.yield-error{font:600 12px/1.4 'DM Sans',Arial,sans-serif;color:#a91138;background:#fde8ee;border:1px solid #f5a3b9;padding:8px;border-radius:5px}
+.yield-error[hidden]{display:none}
+.yield-keypad{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.yield-keypad button{border:0;border-radius:6px;background:#eceff1;color:var(--navy);height:clamp(46px,6.7dvh,56px);font:600 24px 'DM Sans',Arial,sans-serif;touch-action:manipulation}
+.yield-keypad button:active{background:#d5e4eb}
+.yield-actions{display:grid;grid-template-columns:1fr 1.6fr;gap:8px;margin-top:2px}
+.yield-actions .btn{min-width:0;min-height:60px;font-size:16px;letter-spacing:.05em;padding:8px 5px;white-space:normal}
+.yield-actions .btn.primary{background:#e8174a;border-color:#e8174a}
+.yield-actions .btn:disabled{background:#f5c2cf;border-color:#f5c2cf;color:#fff;opacity:1}
+@media(max-height:710px){.sheet:has(.herd-yield){max-height:93dvh}.yield-keypad button{height:43px}.yield-actions .btn{min-height:50px}.herd-yield{gap:7px}}
+
 @media(max-height:700px){.herd-result-scroll{flex-basis:110px}.herd-number-pad button{min-height:34px}}
 
 /* Camera settings — real-track zoom and browser-exposed rear lens selection. */
