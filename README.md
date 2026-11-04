@@ -65,10 +65,10 @@ A **fresh, consolidated, mobile-first application**, designed for a **new GitHub
 - QR_CODE enum value is zero, so it is used explicitly and never removed via `.filter(Boolean)`.
 - When porting to production, implement audited authentication, backend sync and server-issued session IDs before processing real customer data.
 
-## UI-12 and 250-animal test herd (v1.1.0)
+## UI-12 and 70-animal test herd (v1.3.3; previously 250 in v1.1.0)
 
-- A deterministic **test-only herd** of 250 distinct line numbers, `00001` through `00250`, is bundled in `herd.js`. These are **herd catalogue records, not sampling-session animals**. The existing saved session is left unchanged.
-- Open **Main menu → Test herd · 250 animals** to search the full catalogue or filter by Available, Awaiting, Sampled, and No sample. The statuses derive from the current sampling session.
+- A deterministic **test-only herd** of 70 distinct line numbers, `00001` through `00070`, is bundled in `herd.js`. These are **herd catalogue records, not sampling-session animals**. The v1.3.3 update makes a one-time reset of the previous device-local demo sampling session, clearing old linked IDs, animal selections and boxes. Future work is saved normally. Camera preferences are preserved.
+- Open **Main menu → Test herd · 70 animals** to search the full catalogue or filter by Available, Awaiting, Sampled, and No sample. The statuses derive from the current sampling session.
 - **+ ADD COWS** now opens UI-12. Enter part of a line number on the custom number pad to search; tap a matching animal to add it to the **end** of the session list. If yields are required, a yield-entry step follows.
 - Select an already-sampled or already-entered animal to see the duplicate warning. **ADD ANYWAY** appends a separate record, flagged DUPLICATE, without altering earlier records.
 - If no herd animal matches the complete line number, **ADD** uses the number exactly as entered without changing the herd catalogue.
@@ -96,3 +96,11 @@ To compare on iPhone: Main menu → **Camera settings** → set **Barcode type**
 - **Experimental**: iPhone speed/reliability improvement must be measured with actual pots; browser/CPU/network differences matter.
 
 Useful comparison: time 10 normal pots with Original, then 10 with Fast, and also test the one consistently difficult pot. Do not interpret a green camera overlay as a confirmed decoded code.
+
+## Demo session clean-up (v1.3.3)
+
+Before this version, previously linked sample IDs were stored under browser `localStorage` key `postmilk-clean-1.0` and reloaded whenever the app reopened. The test herd catalogue itself is separate from the saved session.
+
+On the **first load of v1.3.3 on each browser/device profile**, the app removes that old **test session** (animal entries, sample links, boxes, and test session timing) and writes the one-time marker `postmilk-demo-clean-70-v1`. Subsequent launches preserve newly entered session data. The user’s stored camera, zoom, barcode-format, and decoder preferences in `postmilk-camera-preferences-v1` are not modified.
+
+The five convenience demo animals are now selected from the 70-animal herd. The catalogue remains independent from the sampling session. Manually entered line numbers outside the catalogue remain supported as an explicit exception, as before.
