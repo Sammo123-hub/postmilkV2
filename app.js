@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.0.6';
+const VERSION='1.1.0';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -73,7 +73,8 @@ function animalCard(a,options={}){
  if(!a)return '';
  const idx=animals().indexOf(a)+1;
  const green=!!a.sample,not=!!a.noSampleReason;
- const state=green?'LINKED ✓':not?'NO SAMPLE':options.isNext?'NEXT':'AWAITING';
+ const duplicate=dupLines().has(a.line);
+ const state=green?'LINKED ✓':not?'NO SAMPLE':(options.isNext?'NEXT':'AWAITING')+(duplicate?' · DUPLICATE':'');
  const number=green&&options.latest?'':String(idx);
  return `<button class="animal-card ${green?'green':not?'no-sample':''} ${options.isNext?'next':''} ${options.latest?'just-linked':''}" type="button" data-action="animal" data-uid="${safe(a.uid)}"><span class="pos">${number}</span><span class="line">${safe(a.line)}</span>${green?`<span class="sample-id">${safe(a.sample)}</span>`:''}${a.yield?`<span class="yield">${safe(a.yield)} kg</span>`:''}<span class="right-tag">${state}</span></button>`;
 }
@@ -345,7 +346,7 @@ function openModal(name,which='',options={}){
  stopCamera();modal=name;selectedUid=which||'';
  const animal=animals().find(a=>a.uid===selectedUid);
  let html='';
- if(name==='menu')html=`<h2>Main menu</h2><span class="tinycap">CLEAN BUILD · VERSION ${VERSION}</span>${[['goto-session','Session management'],['goto-linking','Post-milking linking'],['goto-animals','All animals'],['goto-boxes','Sample boxes'],['export','Export JSON session']].map(([k,v])=>`<button class="menu-row" data-action="${k}">${v}<span>›</span></button>`).join('')}<div class="notice">All data stays on this device. There is no NMR connection in this prototype.</div>${btn('LOAD DEMO ANIMALS','load-demo','outline wide')}${btn('IMPORT JSON SESSION','import','outline wide')}${btn('RESET DEMO SESSION','reset','danger wide')}`;
+ if(name==='menu')html=`<h2>Main menu</h2><span class="tinycap">CLEAN BUILD · VERSION ${VERSION}</span>${[['goto-session','Session management'],['goto-linking','Post-milking linking'],['goto-animals','All animals'],['goto-boxes','Sample boxes'],['view-test-herd','Test herd · 250 animals'],['export','Export JSON session']].map(([k,v])=>`<button class="menu-row" data-action="${k}">${v}<span>›</span></button>`).join('')}<div class="notice">All data stays on this device. There is no NMR connection in this prototype.</div>${btn('LOAD DEMO ANIMALS','load-demo','outline wide')}${btn('IMPORT JSON SESSION','import','outline wide')}${btn('RESET DEMO SESSION','reset','danger wide')}`;
  if(name==='edit-session')html=`<h2>Edit session</h2><label class="field-label">ORGANISATION</label><input class="input" id="edit-org" value="${safe(data.org)}"><label class="field-label">SITE / FARM</label><input class="input" id="edit-site" value="${safe(data.site)}"><label class="field-label">HERD</label><input class="input" id="edit-herd" value="${safe(data.herd)}"><label class="field-label">SESSION ID</label><input class="input" id="edit-session-id" value="${safe(data.session)}"><div class="time-row"><label><span class="tinycap">MILKING START</span>${timeInput('edit-start',data.start)}</label><label><span class="tinycap">MILKING END</span>${timeInput('edit-end',data.end)}</label></div><label style="display:flex;align-items:center;gap:9px"><input type="checkbox" id="edit-yields" ${data.yields?'checked':''}> Yields required</label><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('SAVE','save-session','secondary')}</div>`;
  if(name==='add-animal')html=`<h2>Add cow</h2><p class="hint">Enter the line number written on the pot lid.</p><label class="field-label">ANIMAL LINE NUMBER</label><input class="input" id="new-line" maxlength="25" autocomplete="off" inputmode="numeric" placeholder="e.g. 00207"><label class="field-label">YIELD (kg) ${data.yields?'':'(optional)'}</label><input class="input" id="new-yield" type="number" min="0" step="0.1" inputmode="decimal" placeholder="e.g. 14.2"><div class="buttons">${btn('DONE','modal-close','outline')}${btn('ADD COW','save-animal','primary')}</div>`;
  if(name==='manual')html=`<h2>${page==='boxes'?'Enter Box ID':'Enter Sample ID'}</h2><p class="hint">Manual entry is a fallback; the camera should scan continuously during normal linking.</p><label class="field-label">${page==='boxes'?'BOX ID':'SAMPLE ID'}</label><input class="input" id="manual-id" autocomplete="off" placeholder="Scan code value"><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('LINK','save-manual','secondary')}</div>`;
@@ -373,6 +374,9 @@ function openModal(name,which='',options={}){
    <button class="btn outline capture-add-test" type="button" disabled>+ ADD TEST</button>
   </div>`;
  }
+ if(name==='herd-picker')html=HerdDemo.picker();
+ if(name==='herd-yield')html=HerdDemo.yieldMarkup(animal);
+ if(name==='herd-catalog')html=HerdDemo.catalog();
  if(name==='no-sample'&&animal)html=`<h2>No sample: ${safe(animal.line)}</h2><label class="field-label">REASON (OPTIONAL)</label><select class="input" id="no-sample-reason"><option>Not sampled</option><option>Animal absent</option><option>Sample lost</option><option>Insufficient milk</option><option>Other</option></select><div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','save-no-sample','secondary')}</div>`;
  if(name==='confirm-linking')html=`<h2>All samples linked?</h2><p class="hint">${waiting().length?`${waiting().length} animals are still awaiting samples. Link them or mark them as No sample before confirming.`:'All animals have been dealt with. Confirm this stage to continue to sample boxes.'}</p>${dupLines().size?`<div class="notice warning">Duplicate animal line numbers need resolving first.</div>`:''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
  if(name==='confirm-close')html=`<h2>Close sampling session?</h2><p class="hint">Closing makes this session read-only. Data is not sent to NMR. Export the JSON if you need a copy.</p><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('CLOSE SESSION','do-close','danger')}</div>`;
@@ -401,11 +405,24 @@ function doAction(action,button){
  case 'goto-boxes':if(data.phase!=='confirmed'&&data.phase!=='closed')return toast('Confirm sample linking before scanning boxes');navigate('boxes',{autoCamera:data.phase!=='closed'});break;
  case 'show-linked':filter='linked';navigate('animals');break;
  case 'filter':filter=button.dataset.filter;render();break;
- case 'add-animal':if(data.phase==='closed')return;openModal('add-animal');break;
+ case 'add-animal':if(data.phase==='closed')return;HerdDemo.openPicker();break;
  case 'save-animal':makeAnimal();break;
  case 'finish-adding':if(!animals().length)return toast('Add at least one animal');if(!normalTime(data.start)||!normalTime(data.end))return toast('Enter Milking Start and End in Session Management first');data.phase=animals().length===1?'linking':'check';store();closeModal(false);render();if(data.phase==='linking')startCamera();break;
  case 'confirm-order':data.phase='linking';data.startedAt||=timestamp();store();render();startCamera();break;
  case 'load-demo':addDemo();break;
+ case 'view-test-herd':HerdDemo.openCatalog(false);break;
+ case 'herd-view-catalog':HerdDemo.openCatalog(true);break;
+ case 'herd-catalog-back':HerdDemo.catalogBack();break;
+ case 'herd-catalog-add':HerdDemo.openPicker();break;
+ case 'herd-filter':HerdDemo.changeCatalogFilter(button.dataset.filter);break;
+ case 'herd-key':HerdDemo.key(button.dataset.key);break;
+ case 'herd-clear':HerdDemo.clear();break;
+ case 'herd-pick':HerdDemo.choose(button.dataset.line);break;
+ case 'herd-add-code':HerdDemo.enterTyped();break;
+ case 'herd-duplicate':HerdDemo.confirmDuplicate();break;
+ case 'herd-back-warning':HerdDemo.backWarning();break;
+ case 'herd-done':HerdDemo.done();break;
+ case 'herd-save-yield':HerdDemo.saveYield();break;
  case 'camera-toggle':if(scanner||cameraState==='starting')stopCamera();else startCamera();break;
  case 'retry-camera':startCamera();break;
  case 'test-frame':testLiveFrame();break;
