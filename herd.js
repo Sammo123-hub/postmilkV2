@@ -76,13 +76,19 @@ const HerdDemo=(()=>{
  }
  function clear(){query='';warning='';refreshPicker()}
  function choose(line){
-  if(data.phase==='closed')return toast('This session is closed.');
+  if(data.phase==='closed'||data.phase==='confirmed')return toast('Reopen linking before adding animals.');
   line=String(line||'').trim();
   if(!line||!/^[0-9A-Za-z_-]{1,25}$/.test(line))return toast('Enter a valid line number');
   if(byLine(line).length){warning=line;refreshPicker();return}
   add(line);
  }
- function enterTyped(){if(query)choose(query);else toast('Enter a line number first.')}
+ function enterTyped(){
+  if(!query)return toast('Enter a line number first.');
+  const exact=HERD.find(a=>a.line===query);
+  if(exact)return choose(exact.line);
+  if(HERD.some(a=>a.line.includes(query)))return toast('Select an animal from the matching herd results, or enter its full line number.');
+  choose(query); // mockup 4.2.4: line is not in the herd; add exactly as typed.
+ }
  function add(line){
   const a={uid:uid(),line:String(line),yield:'',sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false};
   data.animals.push(a);
@@ -100,6 +106,7 @@ const HerdDemo=(()=>{
   if(data.phase==='closed'){closeModal(false);return}
   if(data.phase==='setup'||data.phase==='adding'){
    if(animals().length===0){closeModal(false);return}
+   if(!normalTime(data.start)||!normalTime(data.end))return toast('Enter milking start and end times in Session Management first.');
    data.phase=animals().length===1?'linking':'check';
    store();
   }
