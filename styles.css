@@ -169,3 +169,52 @@
 .camera-zoom-buttons button:disabled{opacity:.38}
 .camera-settings-status{border:1px solid #b6d0dc;border-radius:6px;background:#eaf4f9;color:#1f5870;padding:9px 10px;font:600 12px/1.45 'DM Sans',Arial,sans-serif;overflow-wrap:anywhere}
 .camera-settings .buttons .btn{font-size:16px;min-height:49px}
+
+
+/* UI-39 Sample Boxes — source mockups 4.0.9, 4.0.10, 4.0.11.
+   Scoping keeps the working milk-pot camera and animal screens untouched. */
+.box-back{background:none;border:0;color:#fff;font:400 28px/1 "DM Sans",Arial,sans-serif;padding:0 1px 1px 0;margin-right:5px;flex:none;min-width:24px}
+.box-scan-screen{display:flex;flex-direction:column;gap:10px;padding:0;max-width:100%;min-width:0}
+.box-scan-intro{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:22px}
+.box-scan-intro>span:first-child{color:#455a64;font:500 14px/1.35 "DM Sans",Arial,sans-serif}
+.box-camera-indicator{display:flex;align-items:center;gap:6px;white-space:nowrap;color:#607d8b;font:700 12px "Barlow Condensed",Arial,sans-serif;letter-spacing:.08em;flex:none}
+.box-camera-indicator i{width:8px;height:8px;border-radius:50%;background:#b0bec5}
+.box-camera-indicator.is-live{color:#00876a}
+.box-camera-indicator.is-live i{background:#00c389}
+.box-scan-frame{position:relative;height:116px;min-height:116px;max-height:116px;flex:none;border:2px dashed #87cce8;border-radius:8px;background:#f3f9fd;overflow:hidden;isolation:isolate}
+.box-scan-video{position:absolute;inset:0;width:100%;height:100%;z-index:1;overflow:hidden}
+.box-scan-video>div{max-width:100%!important;overflow:hidden}
+.box-scan-video video{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;max-width:100%!important}
+.box-scan-frame .camera-placeholder{z-index:0;color:#607d8b}
+.box-scan-overlay{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;pointer-events:none;text-align:center;background:#f3f9fd}
+.box-scan-overlay strong{font:700 24px "Barlow Condensed",Arial,sans-serif;letter-spacing:.08em;color:#2a7aaa}
+.box-scan-overlay span{font:400 13px "DM Sans",Arial,sans-serif;color:#607d8b}
+.box-scan-frame.is-live .box-scan-overlay{background:transparent;align-items:flex-start;justify-content:flex-end;padding:5px 10px}
+.box-scan-frame.is-live .box-scan-overlay strong{font-size:13px;letter-spacing:.07em;color:#fff;background:#0d1b2a99;border-radius:3px;padding:3px 6px;text-shadow:0 1px 2px #0008}
+.box-scan-frame.is-live .box-scan-overlay span{display:none}
+.box-scan-frame .camera-retry{top:50%;max-width:83%;min-width:150px;font-size:14px}
+.box-scan-frame .scan-affirm{font-size:13px;z-index:4}
+.box-scan-screen .scan-status{margin:0;min-height:0;padding:8px 9px}
+.box-scan-screen .scan-status[hidden]{display:none!important}
+.box-manual-button{align-self:flex-start;min-height:36px;border:1px solid #b3d6e8;color:#2a7aaa;background:#eef6fc;border-radius:6px;padding:6px 12px;font:700 13px "Barlow Condensed",Arial,sans-serif;letter-spacing:.07em}
+.box-scan-closed{border:1px solid #e0e0e0;border-radius:6px;padding:12px;color:#607d8b;font:500 13px/1.4 "DM Sans",Arial,sans-serif}
+.box-scan-card{border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;flex:none;min-width:0}
+.box-scan-card-heading{background:#eef6fc;min-height:32px;display:flex;align-items:center;padding:7px 12px;border-bottom:1px solid #e0e0e0;font:700 13px "Barlow Condensed",Arial,sans-serif;letter-spacing:.12em;color:#2a7aaa}
+.box-scan-empty{padding:14px 12px;color:#90a4ae;font:400 14px "DM Sans",Arial,sans-serif}
+.box-scan-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:46px;padding:8px 12px}
+.box-scan-row+.box-scan-row{border-top:1px solid #eceff1}
+.box-scan-row strong{font:700 18px "DM Sans",Arial,sans-serif;letter-spacing:.03em;color:#0d1b2a;min-width:0;overflow-wrap:anywhere}
+.box-scan-row span{font:500 13px "DM Sans",Arial,sans-serif;color:#607d8b;flex:none;white-space:nowrap}
+.bottom:has(.box-scan-footer){display:block;flex:none;padding:10px 14px max(14px,env(safe-area-inset-bottom));border-top:1px solid #e0e0e0;box-shadow:none}
+.bottom:has(.box-scan-footer)>*{flex:none}
+.box-scan-footer{display:flex;flex-direction:column;gap:10px;width:100%}
+.box-scan-confirm{display:flex;align-items:center;gap:12px;min-height:44px;color:#0d1b2a;cursor:pointer;font:500 14.5px/1.35 "DM Sans",Arial,sans-serif}
+.box-scan-confirm.inactive{opacity:.45;cursor:default}
+.box-scan-confirm input{appearance:none;-webkit-appearance:none;display:block;position:relative;border:2px solid #0d1b2a;background:#fff;border-radius:5px;width:28px;height:28px;min-width:28px;margin:0;flex:none}
+.box-scan-confirm input:checked{background:#2a7aaa;border-color:#2a7aaa}
+.box-scan-confirm input:checked:after{content:"✓";position:absolute;left:4px;top:-4px;color:white;font:700 24px "DM Sans",Arial,sans-serif}
+.box-scan-confirm input:focus-visible{outline:3px solid #87cce8;outline-offset:3px}
+.box-scan-confirm span{flex:1;min-width:0}
+.box-scan-footer .box-done{height:62px;min-height:62px;width:100%;font-size:19px}
+.box-scan-footer .box-done:disabled{opacity:1;color:#b0bec5;background:#eceff1;border-color:#eceff1}
+@media(max-width:380px){.box-scan-intro>span:first-child{font-size:12.5px}.box-scan-row strong{font-size:16px}.box-scan-row span{font-size:12px}}
