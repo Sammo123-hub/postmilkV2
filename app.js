@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.0.1';
+const VERSION='1.0.2';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -77,7 +77,7 @@ function animalCard(a,options={}){
  const number=green&&options.latest?'':String(idx);
  return `<button class="animal-card ${green?'green':not?'no-sample':''} ${options.isNext?'next':''} ${options.latest?'just-linked':''}" type="button" data-action="animal" data-uid="${safe(a.uid)}"><span class="pos">${number}</span><span class="line">${safe(a.line)}</span>${green?`<span class="sample-id">${safe(a.sample)}</span>`:''}${a.yield?`<span class="yield">${safe(a.yield)} kg</span>`:''}<span class="right-tag">${state}</span></button>`;
 }
-function cameraMarkup(){return `<div class="camera-panel" id="camera-panel"><div class="camera-placeholder" id="camera-placeholder">Camera starting…<br>Point at the next sample pot</div><div class="camera-video" id="qr-reader"></div><div class="camera-hud"><div class="camera-title"><span>SCAN NEXT ${page==='boxes'?'BOX':'POT'}</span><span class="camera-badge" id="camera-badge">CAMERA OFF</span></div><div class="finder"></div></div><div class="scan-affirm" id="scan-affirm" hidden>✓ LINKED</div></div><div class="scan-status" id="scan-status" role="status">Camera ready to start</div><div class="buttons camera-controls">${btn('START CAMERA','camera-toggle','secondary smallbtn')}${btn(page==='boxes'?'TYPE BOX ID':'TYPE SAMPLE ID','manual-sample','outline smallbtn')}</div><details class="diag"><summary>Camera diagnostics</summary><pre id="scan-debug">Waiting for camera</pre></details>`;}
+function cameraMarkup(){return `<div class="camera-panel" id="camera-panel"><div class="camera-placeholder" id="camera-placeholder">Camera starting…<br>Point at the next sample pot</div><div class="camera-video" id="qr-reader"></div><div class="camera-hud"><div class="camera-title"><span>SCAN NEXT ${page==='boxes'?'BOX':'POT'}</span><span class="camera-badge" id="camera-badge">CAMERA OFF</span></div><div class="finder"></div></div><div class="scan-affirm" id="scan-affirm" hidden>✓ LINKED</div></div><div class="scan-status" id="scan-status" role="status">Camera ready to start</div><div class="buttons camera-controls">${btn('START CAMERA','camera-toggle','secondary smallbtn')}${btn(page==='boxes'?'TYPE BOX ID':'TYPE SAMPLE ID','manual-sample','outline smallbtn')}</div><details class="diag"><summary>Camera diagnostics</summary><pre id="scan-debug">Waiting for camera</pre><p class="frame-tip">Hold a QR code in view. Tap the button, then keep it steady for two seconds. This captures the main camera feed and tests the still image without linking an animal.</p><button type="button" class="btn secondary wide" data-action="test-frame" id="test-frame-button">CAPTURE &amp; TEST FRAME</button><div id="frame-result" class="frame-result" role="status" aria-live="polite">No frame tested yet.</div><img id="frame-preview" class="frame-preview" alt="Still frame captured from the main scanner camera" hidden></details>`;}
 function linkingScreen(){
  const n=waiting().length,l=linked().length,ns=noSample().length;
  const chips=`<div class="pillrow"><span class="pill red">${n} awaiting</span><button class="pill green" data-action="show-linked">${l} linked</button><span class="pill">${ns} no sample</span></div>`;
@@ -139,7 +139,7 @@ function boxScan(raw){const code=String(raw||'').trim();if(!code)return false;if
 // Matches the actual iPhone-tested standalone QR diagnostic's Html5Qrcode options.
 let scanner=null,scannerMode='',cameraState='off',cameraGeneration=0,stopping=Promise.resolve(),loadingLibrary=null;
 let lastScanId='',lastScanTime=0,lastError='',lastDetected='';
-let scanAttempts=0,scanError='',decoderSource='',scanSuccessCount=0,videoTrackState='—',frameDebugTimer=0;
+let scanAttempts=0,scanError='',decoderSource='',scanSuccessCount=0,videoTrackState='—',frameDebugTimer=0,frameTestBusy=false;
 function getScannerVideo(){return $('#qr-reader video')}
 function readVideoTrack(){try{const v=getScannerVideo(),t=v?.srcObject?.getVideoTracks?.()[0],s=t?.getSettings?.()||{};return `${t?.readyState||'none'}${s.width&&s.height?` · ${s.width}×${s.height}`:''}${s.facingMode?` · ${s.facingMode}`:''}`}catch{return 'unknown'}}
 function checkCameraVideo(){const v=getScannerVideo();return `${v?.videoWidth||0} × ${v?.videoHeight||0}${v?` · ready ${v.readyState} · paused ${v.paused}`:''}`}
@@ -172,6 +172,60 @@ async function loadLibrary(){
   throw Error('QR decoder could not be loaded from either source');
  })();
  try{await loadingLibrary}finally{loadingLibrary=null}
+}
+// Diagnostic only: inspect the actual live scanner video without restarting its camera
+// or linking a sample. Every image remains on the user's device.
+async function testLiveFrame(){
+ if(frameTestBusy)return;
+ const result=$('#frame-result'),preview=$('#frame-preview'),button=$('#test-frame-button');
+ const video=getScannerVideo();
+ if(!result||!preview||!button)return;
+ if(!video||video.readyState<2||!video.videoWidth||!video.videoHeight){
+  result.textContent='Camera video is not ready. Start the camera first.';
+  return;
+ }
+ const generation=cameraGeneration;
+ frameTestBusy=true;
+ button.disabled=true;
+ const label=button.textContent;
+ button.textContent='CAPTURING IN 2 SECONDS…';
+ result.textContent='Keep the QR code fully visible and steady in the live camera picture.';
+ let stillReader=null,host=null;
+ try{
+  await new Promise(resolve=>setTimeout(resolve,2000));
+  if(generation!==cameraGeneration||!video.isConnected||video.readyState<2)throw Error('Camera changed during the test. Please try again.');
+  const canvas=document.createElement('canvas');
+  canvas.width=video.videoWidth;
+  canvas.height=video.videoHeight;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  if(!ctx)throw Error('Cannot capture video frame on this device');
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  // The image shown here is the raw video frame, not the CSS-cropped preview.
+  preview.src=canvas.toDataURL('image/png');
+  preview.hidden=false;
+  const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('Could not encode still frame')),'image/png'));
+  const file=new File([blob],'postmilk-frame.png',{type:'image/png'});
+  result.textContent='Frame captured ('+canvas.width+' × '+canvas.height+'). Running independent still-image QR decode…';
+  if(typeof Html5Qrcode!=='function'||typeof Html5QrcodeSupportedFormats==='undefined')throw Error('QR library is not loaded');
+  host=document.createElement('div');
+  host.id='postmilk-still-decode-host';
+  host.style.cssText='position:fixed;left:-10000px;top:-10000px;width:320px;height:320px;pointer-events:none;overflow:hidden';
+  document.body.appendChild(host);
+  stillReader=new Html5Qrcode(host.id,{formatsToSupport:[Html5QrcodeSupportedFormats.QR_CODE],useBarCodeDetectorIfSupported:false,verbose:false});
+  try{
+   const found=await stillReader.scanFile(file,true);
+   result.textContent='STILL-IMAGE SUCCESS: '+String(found)+' ('+canvas.width+' × '+canvas.height+'). Main camera remains running. No animal was linked.';
+  }catch(error){
+   result.textContent='STILL-IMAGE FAILED ('+canvas.width+' × '+canvas.height+'): '+String(error?.message||error).slice(0,220)+'. Compare the captured picture with the QR visible in the live preview.';
+  }
+ }catch(error){
+  result.textContent='FRAME TEST ERROR: '+String(error?.message||error).slice(0,220);
+ }finally{
+  if(stillReader){try{await stillReader.clear()}catch{}}
+  if(host)host.remove();
+  frameTestBusy=false;
+  if(button.isConnected){button.disabled=false;button.textContent=label;}
+ }
 }
 function updateCameraButton(){const e=$('[data-action="camera-toggle"]');if(e)e.textContent=cameraState==='live'?'STOP CAMERA':cameraState==='starting'?'STARTING…':'START CAMERA';const label=$('#camera-badge');if(label)label.textContent=cameraState==='live'?'CAMERA ON':cameraState==='starting'?'STARTING':'CAMERA OFF';updateDebug();}
 function onQrDecoded(value){
@@ -279,6 +333,7 @@ function doAction(action,button){
  case 'confirm-order':data.phase='linking';data.startedAt||=timestamp();store();render();startCamera();break;
  case 'load-demo':addDemo();break;
  case 'camera-toggle':if(scanner||cameraState==='starting')stopCamera();else startCamera();break;
+ case 'test-frame':testLiveFrame();break;
  case 'manual-sample':openModal('manual');break;
  case 'save-manual':{const v=$('#manual-id')?.value||'';const ok=page==='boxes'?boxScan(v):linkSample(v);if(ok){closeModal(false);if(page==='linking'&&waiting().length||page==='boxes')startCamera();}break;}
  case 'animal':selectedUid=button.dataset.uid;openModal('animal',selectedUid);break;
