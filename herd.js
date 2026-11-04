@@ -8,7 +8,7 @@ const HerdDemo=(()=>{
   id:'TEST-'+String(i+1).padStart(5,'0'),
   line:String(i+1).padStart(5,'0')
  })));
- let query='',warning='',catalogQuery='',catalogFilter='all',catalogFromPicker=false;
+ let query='',warning='',catalogQuery='',catalogFilter='all',catalogFromPicker=false,yieldDraft='';
  const byLine=line=>animals().filter(a=>a.line===line);
  const kind=line=>{
   const matches=byLine(line);
@@ -126,20 +126,73 @@ const HerdDemo=(()=>{
   closeModal(false);render();
   if(page==='linking'&&data.phase==='linking'&&waiting().length)startCamera();
  }
+ // UI-24 Yield Capture: use the mockup's in-app keypad, never a native
+ // number input. Digits go straight into the yield field on opening.
  function yieldMarkup(animal){
   if(!animal)return '<div class="notice">Animal not found.</div>';
-  return '<div class="herd-yield"><h2>YIELD CAPTURE</h2><p>Line number <strong>'+safe(animal.line)+'</strong> was added to the sampling list.</p>'+
-   '<label class="field-label" for="herd-yield">MILK YIELD (kg)</label>'+
-   '<input id="herd-yield" class="input" type="number" inputmode="decimal" min="0" step="0.1" placeholder="e.g. 12.4" value="'+safe(animal.yield)+'">'+
-   '<div class="buttons"><button type="button" class="btn outline" data-action="herd-save-yield">SKIP</button><button type="button" class="btn secondary" data-action="herd-save-yield">SAVE &amp; ADD NEXT</button></div></div>';
+  yieldDraft=String(animal.yield||'');
+  const position=animals().indexOf(animal)+1;
+  const keys=['1','2','3','4','5','6','7','8','9','.','0','⌫'];
+  return '<div class="herd-yield">'+
+   '<div class="yield-grip" aria-hidden="true"></div>'+
+   '<div class="yield-top"><div><div class="yield-position">MILK YIELD · LIST POSITION '+position+'</div>'+
+   '<div class="yield-line">'+safe(animal.line)+'</div></div>'+
+   '<span class="yield-status">Awaiting sample</span></div>'+
+   '<div class="yield-entry-label">YIELD</div>'+
+   '<div id="herd-yield-display" class="yield-display" role="textbox" aria-label="Milk yield in kilograms" aria-readonly="true">'+
+    '<span id="herd-yield-number" class="yield-number">'+(yieldDraft?safe(yieldDraft):'<span class="yield-placeholder">0.0</span>')+'<span class="yield-cursor" aria-hidden="true"></span></span>'+
+    '<span class="yield-unit">kg</span></div>'+
+   '<div class="yield-hint">Must be within the permitted range</div>'+
+   '<div id="herd-yield-error" class="yield-error" role="alert" hidden></div>'+
+   '<div class="yield-keypad">'+keys.map(key=>
+    '<button type="button" data-action="herd-yield-digit" data-digit="'+key+'" aria-label="'+(key==='⌫'?'Backspace':key==='.'?'Decimal point':key)+'">'+key+'</button>'
+    ).join('')+'</div>'+
+   '<div class="yield-actions">'+
+    '<button type="button" class="btn outline" data-action="herd-save-yield" data-mode="skip">SKIP</button>'+
+    '<button type="button" class="btn primary" id="herd-yield-confirm" data-action="herd-save-yield" data-mode="confirm" '+(!validYield()?'disabled':'')+'>'+
+     confirmText()+'</button></div>'+
+   '</div>';
  }
- function saveYield(){
-  const a=animals().find(x=>x.uid===selectedUid),input=$('#herd-yield');
+ function validYield(){
+  return /^\d+(?:\.\d+)?$/.test(yieldDraft)&&Number.isFinite(Number(yieldDraft))&&Number(yieldDraft)>=0;
+ }
+ function confirmText(){
+  return validYield()?'CONFIRM '+safe(yieldDraft)+' KG':'CONFIRM';
+ }
+ function refreshYield(){
+  const display=$('#herd-yield-number');
+  if(display)display.innerHTML=(yieldDraft?safe(yieldDraft):'<span class="yield-placeholder">0.0</span>')+'<span class="yield-cursor" aria-hidden="true"></span>';
+  const confirm=$('#herd-yield-confirm');
+  if(confirm){confirm.disabled=!validYield();confirm.textContent=confirmText();}
+  const error=$('#herd-yield-error');if(error){error.hidden=true;error.textContent='';}
+ }
+ function yieldDigit(key){
+  if(modal!=='herd-yield')return;
+  if(key==='⌫')yieldDraft=yieldDraft.slice(0,-1);
+  else if(key==='.'){
+   if(!yieldDraft.includes('.'))yieldDraft=(yieldDraft||'0')+'.';
+  }else if(/^\d$/.test(key)){
+   if(yieldDraft.length>=9)return;
+   yieldDraft+=key;
+  }
+  refreshYield();
+ }
+ function saveYield(mode='confirm'){
+  const a=animals().find(x=>x.uid===selectedUid);
   if(!a)return;
-  const v=String(input?.value||'').trim();
-  if(v!==''&&(!Number.isFinite(Number(v))||Number(v)<0))return toast('Enter a valid milk yield.');
-  a.yield=v;store();
-  openModal('herd-picker');toast('Added '+a.line+' to the sampling list.');
+  if(mode==='skip'){
+   a.yield='';
+  }else{
+   if(!validYield()){
+    const error=$('#herd-yield-error');
+    if(error){error.textContent='Enter a valid milk yield before confirming.';error.hidden=false;}
+    return;
+   }
+   a.yield=yieldDraft;
+  }
+  store();
+  openModal('herd-picker');
+  toast(mode==='skip'?'Added '+a.line+' without a yield.':'Saved '+a.yield+' kg for '+a.line+'.');
  }
  function resetSearch(){query='';warning=''}
  const counts=()=>HERD.reduce((o,a)=>(o[kind(a.line)]++,o),{available:0,awaiting:0,sampled:0,'no-sample':0});
@@ -169,5 +222,5 @@ const HerdDemo=(()=>{
  function openPicker(){resetSearch();openModal('herd-picker')}
  // The handler exists independently of app.js's time-field input listener.
  document.addEventListener('input',e=>{if(e.target.id==='herd-catalog-search')changeCatalogSearch(e.target.value)});
- return {HERD,kind,counts,picker,key,clear,choose,enterTyped,confirmDuplicate,backWarning,done,yieldMarkup,saveYield,resetSearch,catalog,openCatalog,catalogBack,changeCatalogFilter,openPicker};
+ return {HERD,kind,counts,picker,key,clear,choose,enterTyped,confirmDuplicate,backWarning,done,yieldMarkup,yieldDigit,saveYield,resetSearch,catalog,openCatalog,catalogBack,changeCatalogFilter,openPicker};
 })();
