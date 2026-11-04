@@ -230,6 +230,8 @@ const CameraSettings=(()=>{
   save();
   zoomRequested=z;
   void processZoomChanges();
+  // Also guard the live Settings preview against Safari resetting magnification.
+  if(scanner&&cameraState==='live')watchZoom(scanner);
  }
  async function chooseCamera(cameraId){
   if(modal!=='camera-settings')return;
