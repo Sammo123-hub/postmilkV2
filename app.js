@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.0.4';
+const VERSION='1.0.5';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -144,6 +144,7 @@ function boxScan(raw){const code=String(raw||'').trim();if(!code)return false;if
 // Matches the actual iPhone-tested standalone QR diagnostic's Html5Qrcode options.
 let scanner=null,scannerMode='',cameraState='off',cameraGeneration=0,stopping=Promise.resolve(),loadingLibrary=null;
 let lastScanId='',lastScanTime=0,lastError='',lastDetected='';
+let captureCompleting=false,captureCompletionTimer=null;
 let scanAttempts=0,scanError='',decoderSource='',scanSuccessCount=0,videoTrackState='—',frameDebugTimer=0,frameTestBusy=false;
 function getScannerVideo(){return modal==='capture'?$('#capture-reader video'):$('#qr-reader video')}
 function readVideoTrack(){try{const v=getScannerVideo(),t=v?.srcObject?.getVideoTracks?.()[0],s=t?.getSettings?.()||{};return `${t?.readyState||'none'}${s.width&&s.height?` · ${s.width}×${s.height}`:''}${s.facingMode?` · ${s.facingMode}`:''}`}catch{return 'unknown'}}
@@ -235,18 +236,50 @@ async function testLiveFrame(){
 function updateCameraButton(){const e=$('[data-action="camera-toggle"]');if(e)e.textContent=cameraState==='live'?'STOP CAMERA':cameraState==='starting'?'STARTING…':'START CAMERA';const label=$('#camera-badge');if(label)label.textContent=cameraState==='live'?'CAMERA ON':cameraState==='starting'?'STARTING':'CAMERA OFF';const capture=$('#capture-badge');if(capture)capture.textContent=cameraState==='live'?'CAMERA ON':cameraState==='starting'?'CAMERA STARTING':'CAMERA OFF';updateDebug();}
 function onQrDecoded(value){
  const capturing=modal==='capture'&&!!selectedUid&&data.phase==='linking';
- if(!scanner||(!capturing&&(modal||(page!=='linking'&&page!=='boxes'))))return;
+ if(captureCompleting||!scanner||(!capturing&&(modal||(page!=='linking'&&page!=='boxes'))))return;
  const code=String(value??'').trim();if(!code)return;
  const now=Date.now();lastDetected=code;scanSuccessCount++;scanError='';updateDebug();
  if(code===lastScanId&&now-lastScanTime<1100)return;
  lastScanId=code;lastScanTime=now;
  if(capturing){
   const uid=selectedUid;
-  if(linkSample(code,uid)){
-   closeModal(false);render();
-   if(page==='linking'&&waiting().length)startCamera();
-  }
+  if(linkSample(code,uid))showCaptureLinked(uid,code);
  }else if(page==='boxes')boxScan(code);else linkSample(code);
+}
+// UI-20: briefly show mockup 4.3.2 after linking before the sheet closes.
+// The selected animal can be out of sequence: NEXT is always determined by the
+// first unresolved animal in the original list, not by this capture selection.
+function showCaptureLinked(animalUid,sampleId){
+ if(modal!=='capture'||selectedUid!==animalUid||captureCompleting)return;
+ captureCompleting=true;
+ const animal=animals().find(a=>a.uid===animalUid);
+ const position=animal?animals().indexOf(animal)+1:0;
+ const sheet=$('.capture-sheet');
+ if(sheet)sheet.classList.add('capture-complete');
+ const status=$('.capture-status-pill');
+ if(status){status.textContent='Sample linked';status.classList.add('linked');}
+ const cameraIndicator=$('.capture-camera-indicator');
+ if(cameraIndicator)cameraIndicator.innerHTML='<span id="capture-badge">CAMERA OFF</span>';
+ const camera=$('.capture-camera');
+ if(camera){
+  camera.classList.add('capture-linked');
+  const overlay=document.createElement('div');
+  overlay.className='capture-linked-result';
+  overlay.innerHTML='<div class="capture-linked-caption">SAMPLE ID</div><div class="capture-linked-id">'+safe(sampleId)+'</div>';
+  camera.appendChild(overlay);
+ }
+ const actions=$('.capture-actions');
+ if(actions)actions.innerHTML='<button class="btn outline" disabled>NOT TO BE SAMPLED</button><button class="btn outline" disabled>TYPE SAMPLE ID</button><button class="btn outline capture-delete-display" disabled>DELETE SAMPLE ID</button><button class="btn outline" disabled>ANIMAL DETAILS</button><button class="btn outline capture-add-test" disabled>+ ADD TEST</button>';
+ // Stop the popup camera, but preserve this confirmation view for a moment.
+ stopCamera();
+ clearTimeout(captureCompletionTimer);
+ captureCompletionTimer=setTimeout(()=>{
+  captureCompletionTimer=null;
+  if(modal!=='capture'||selectedUid!==animalUid||!captureCompleting)return;
+  closeModal(false);
+  render(); // Move this animal into the one green latest-linked position above the camera.
+  if(page==='linking'&&data.phase==='linking'&&waiting().length)startCamera();
+ },950);
 }
 async function stopCamera(){
  const prev=scanner;const generation=++cameraGeneration;scanner=null;scannerMode='';cameraState='off';clearInterval(frameDebugTimer);frameDebugTimer=0;updateCameraButton();
@@ -308,6 +341,7 @@ async function navigate(to,{autoCamera=false}={}){
  if(autoCamera&&((to==='linking'&&data.phase==='linking'&&waiting().length)||to==='boxes'))startCamera();
 }
 function openModal(name,which=''){
+ clearTimeout(captureCompletionTimer);captureCompletionTimer=null;captureCompleting=false;
  stopCamera();modal=name;selectedUid=which||'';
  const animal=animals().find(a=>a.uid===selectedUid);
  let html='';
@@ -336,7 +370,7 @@ function openModal(name,which=''){
  $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':'Post-milking'}">${name==='capture'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
  const focus=({ 'add-animal':'new-line',manual:'manual-id','manual-animal':'manual-id'})[name];if(focus)$('#'+focus)?.focus();if(name==='capture')startCamera();
 }
-function closeModal(resume=true){if(modal==='capture')stopCamera();modal='';selectedUid='';$('#modal-root').replaceChildren();if(resume&&((page==='linking'&&data.phase==='linking'&&waiting().length)||page==='boxes'))startCamera();}
+function closeModal(resume=true){clearTimeout(captureCompletionTimer);captureCompletionTimer=null;captureCompleting=false;if(modal==='capture')stopCamera();modal='';selectedUid='';$('#modal-root').replaceChildren();if(resume&&((page==='linking'&&data.phase==='linking'&&waiting().length)||page==='boxes'))startCamera();}
 function addDemo(){if(animals().length){toast('Demo animals can be loaded only into an empty list.');return}for(const [line,yieldKg] of demo)data.animals.push({uid:uid(),line,yield:yieldKg,sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false});store();closeModal(false);page='linking';render();toast('Five demo animals added.');}
 function makeAnimal(){const line=$('#new-line')?.value.trim()||'',yieldKg=$('#new-yield')?.value.trim()||'';if(!line||!/^[-\w]{1,25}$/.test(line))return toast('Enter a valid animal line number');if(animals().some(a=>a.line===line))return toast('Animal already in this list');if(yieldKg!==''&&(!Number.isFinite(+yieldKg)||+yieldKg<0))return toast('Invalid milk yield');
  data.animals.push({uid:uid(),line,yield:yieldKg,sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false});if(data.phase==='setup')data.phase='adding';store();closeModal(false);render();openModal('add-animal');toast(`${line} added`);}
