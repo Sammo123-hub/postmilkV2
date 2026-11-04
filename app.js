@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.2.1';
+const VERSION='1.2.2';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -281,6 +281,7 @@ function showCaptureLinked(animalUid,sampleId){
  },950);
 }
 async function stopCamera(){
+ CameraSettings.onStopped();
  const prev=scanner;const generation=++cameraGeneration;scanner=null;scannerMode='';cameraState='off';clearInterval(frameDebugTimer);frameDebugTimer=0;updateCameraButton();
  if(!prev)return stopping;
  stopping=stopping.catch(()=>{}).then(async()=>{try{await prev.stop()}catch{}try{await prev.clear()}catch{}});
@@ -329,7 +330,7 @@ async function startCamera(){
   await CameraSettings.onStarted(opened);
   // Only update the diagnostics, never re-render the camera or animal list.
   clearInterval(frameDebugTimer);
-  frameDebugTimer=setInterval(()=>{if(scanner===opened&&generation===cameraGeneration)updateDebug();else{clearInterval(frameDebugTimer);frameDebugTimer=0}},1800);
+  frameDebugTimer=setInterval(()=>{if(scanner===opened&&generation===cameraGeneration){updateDebug();CameraSettings.monitor(opened);}else{clearInterval(frameDebugTimer);frameDebugTimer=0}},1800);
  }catch(err){
   if(generation!==cameraGeneration)return;
   lastError=String(err?.message||err);cameraState='off';scanner=null;scannerMode='';
@@ -383,7 +384,7 @@ function openModal(name,which='',options={}){
  if(name==='confirm-linking')html=`<h2>All samples linked?</h2><p class="hint">${waiting().length?`${waiting().length} animals are still awaiting samples. Link them or mark them as No sample before confirming.`:'All animals have been dealt with. Confirm this stage to continue to sample boxes.'}</p>${dupLines().size?`<div class="notice warning">Duplicate animal line numbers need resolving first.</div>`:''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
  if(name==='confirm-close')html=`<h2>Close sampling session?</h2><p class="hint">Closing makes this session read-only. Data is not sent to NMR. Export the JSON if you need a copy.</p><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('CLOSE SESSION','do-close','danger')}</div>`;
  $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':'Post-milking'}">${name==='capture'||name==='herd-picker'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
- const focus=({ 'add-animal':'new-line',manual:'manual-id'})[name];if(focus)$('#'+focus)?.focus();if(name==='capture'&&!options.skipCamera)startCamera();if(name==='camera-settings')CameraSettings.start();
+ const focus=({ 'add-animal':'new-line',manual:'manual-id','herd-yield':'herd-yield'})[name];if(focus){const input=$('#'+focus);if(input){input.focus({preventScroll:true});if(name==='herd-yield'&&input.value)input.select();}}if(name==='capture'&&!options.skipCamera)startCamera();if(name==='camera-settings')CameraSettings.start();
 }
 function closeModal(resume=true){clearTimeout(captureCompletionTimer);captureCompletionTimer=null;captureCompleting=false;if(modal==='capture'||modal==='camera-settings')stopCamera();modal='';selectedUid='';$('#modal-root').replaceChildren();if(resume&&((page==='linking'&&data.phase==='linking'&&waiting().length)||page==='boxes'))startCamera();}
 function addDemo(){if(animals().length){toast('Demo animals can be loaded only into an empty list.');return}for(const [line,yieldKg] of demo)data.animals.push({uid:uid(),line,yield:yieldKg,sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false});store();closeModal(false);page='linking';render();toast('Five demo animals added.');}
