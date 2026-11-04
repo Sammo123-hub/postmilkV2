@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.2.0';
+const VERSION='1.2.1';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -305,9 +305,9 @@ async function startCamera(){
   if(generation!==cameraGeneration||!reader.isConnected)return;
   if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)throw Error('Camera requires HTTPS and permission in Safari.');
   // Same exact tested options: QR_CODE = numeric zero, NEVER truthiness-filter it.
-  const format=Html5QrcodeSupportedFormats.QR_CODE;
+  const formats=CameraSettings.formats();
   reader.replaceChildren();
-  opened=new Html5Qrcode(readerId,{formatsToSupport:[format],useBarCodeDetectorIfSupported:false,verbose:false});
+  opened=new Html5Qrcode(readerId,{formatsToSupport:formats,useBarCodeDetectorIfSupported:false,verbose:false});
   scanner=opened;scannerMode=page;
   scanStatus('Asking iPhone for rear camera…');
   await opened.start(CameraSettings.cameraConstraint(),{fps:10},text=>{
@@ -490,6 +490,7 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
  if(e.target.id==='camera-device'){CameraSettings.chooseCamera(e.target.value);return;}
+ if(e.target.id==='camera-code-format'){CameraSettings.chooseFormat(e.target.value);return;}
  if(e.target.id==='confirm-boxes'){data.boxesConfirmed=e.target.checked;store();}
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal)closeModal();if(e.key==='Enter'&&e.target.id==='new-line'){e.preventDefault();$('#new-yield')?.focus()}if(e.key==='Enter'&&e.target.id==='manual-id'){e.preventDefault();doAction('save-manual',e.target)}});
