@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.1.0';
+const VERSION='1.1.1';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -87,8 +87,7 @@ function cameraMarkup(){
 }
 function linkingScreen(){
  const n=waiting().length,l=linked().length,ns=noSample().length;
- const chips=`<div class="pillrow"><span class="pill red">${n} awaiting</span><button class="pill green" data-action="show-linked">${l} linked</button><span class="pill">${ns} no sample</span></div>`;
- let html=chips,footer='';
+ let html='',footer='';
  if(!animals().length){html+=`<div class="notice">Add animals in the order their pots are laid out. You can also load demo animals for testing.</div><div class="buttons">${btn('+ ADD COWS','add-animal','primary wide')}${btn('LOAD DEMO','load-demo','outline wide')}</div>`;}
  else if(data.phase==='setup'||data.phase==='adding'){
   html+=`<div class="notice">Add cows in pot order. When finished, check the order and start the camera.</div><div class="section-head"><strong>ANIMALS · ${animals().length}</strong></div>${animals().map(a=>animalCard(a)).join('')}`;
@@ -120,7 +119,6 @@ function refreshLinkingAfterScan(){
  const last=$('#last-linked');if(last)last.innerHTML=latest()?animalCard(latest(),{latest:true}):'<div class="no-last">The last linked animal will appear here in green</div>';
  const remain=$('#await-rows');if(remain)remain.innerHTML=waiting().map((a,i)=>animalCard(a,{isNext:i===0})).join('');
  const count=$('#await-count');if(count)count.textContent=String(waiting().length);
- const pills=$$('.pillrow .pill');if(pills[0])pills[0].textContent=`${waiting().length} awaiting`;if(pills[1])pills[1].textContent=`${linked().length} linked`;if(pills[2])pills[2].textContent=`${noSample().length} no sample`;
  if(!waiting().length){$('#awaiting-section')?.remove();}
 }
 function scanStatus(message,isError=false){const el=modal==='capture'?$('#capture-status'):$('#scan-status');if(el){el.textContent=message;el.classList.toggle('error',isError);if(page==='linking'||modal==='capture')el.hidden=!isError;}updateDebug();}
@@ -380,7 +378,7 @@ function openModal(name,which='',options={}){
  if(name==='no-sample'&&animal)html=`<h2>No sample: ${safe(animal.line)}</h2><label class="field-label">REASON (OPTIONAL)</label><select class="input" id="no-sample-reason"><option>Not sampled</option><option>Animal absent</option><option>Sample lost</option><option>Insufficient milk</option><option>Other</option></select><div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','save-no-sample','secondary')}</div>`;
  if(name==='confirm-linking')html=`<h2>All samples linked?</h2><p class="hint">${waiting().length?`${waiting().length} animals are still awaiting samples. Link them or mark them as No sample before confirming.`:'All animals have been dealt with. Confirm this stage to continue to sample boxes.'}</p>${dupLines().size?`<div class="notice warning">Duplicate animal line numbers need resolving first.</div>`:''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
  if(name==='confirm-close')html=`<h2>Close sampling session?</h2><p class="hint">Closing makes this session read-only. Data is not sent to NMR. Export the JSON if you need a copy.</p><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('CLOSE SESSION','do-close','danger')}</div>`;
- $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':'Post-milking'}">${name==='capture'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
+ $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':'Post-milking'}">${name==='capture'||name==='herd-picker'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
  const focus=({ 'add-animal':'new-line',manual:'manual-id'})[name];if(focus)$('#'+focus)?.focus();if(name==='capture'&&!options.skipCamera)startCamera();
 }
 function closeModal(resume=true){clearTimeout(captureCompletionTimer);captureCompletionTimer=null;captureCompleting=false;if(modal==='capture')stopCamera();modal='';selectedUid='';$('#modal-root').replaceChildren();if(resume&&((page==='linking'&&data.phase==='linking'&&waiting().length)||page==='boxes'))startCamera();}
