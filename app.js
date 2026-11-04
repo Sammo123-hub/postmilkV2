@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.3.4';
+const VERSION='1.3.5';
 const STORAGE='postmilk-clean-1.0';
 // One-time migration for the 70-animal TEST herd release. An old sampling
 // session includes previously linked IDs in localStorage, so clear that
@@ -145,7 +145,7 @@ function boxesScreen(){
  const closed=data.phase==='closed',count=data.boxes.length;
  const canConfirm=count>0&&!closed,canDone=closed||(count>0&&data.boxesConfirmed);
  const html='<div class="box-scan-screen">'+
-  '<div class="box-scan-intro"><span>Scan the QR code on each box used.</span>'+
+  '<div class="box-scan-intro"><span>Scan the barcode on each box used.</span>'+
    '<span class="box-camera-indicator" id="box-camera-indicator"><i aria-hidden="true"></i><span id="camera-badge">'+(closed?'CAMERA OFF':'STARTING')+'</span></span></div>'+
   (closed?'<div class="box-scan-closed">This session is closed. Scanned boxes are shown below.</div>':boxCameraMarkup())+
   '<div class="scan-status" id="scan-status" role="status" hidden></div>'+
@@ -364,12 +364,19 @@ async function startCamera(){
   if(generation!==cameraGeneration||!reader.isConnected)return;
   if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)throw Error('Camera requires HTTPS and permission in Safari.');
   // Same exact tested options: QR_CODE = numeric zero, NEVER truthiness-filter it.
-  const formats=page==='boxes'&&!settingsMode?[Html5QrcodeSupportedFormats.QR_CODE]:CameraSettings.formats();
+  // Sample boxes may have standard 1D barcodes (e.g. Code 128/EAN/UPC/ITF)
+  // or 2D symbols. Omit formatsToSupport to enable the library's full set.
+  // Pot scanning continues to use the customer's selected formats and
+  // the optional fast Data Matrix engine. Never change that scanner here.
+  const isBoxScan=page==='boxes'&&!settingsMode;
+  const scannerOptions=isBoxScan
+   ?{useBarCodeDetectorIfSupported:false,verbose:false}
+   :{formatsToSupport:CameraSettings.formats(),useBarCodeDetectorIfSupported:false,verbose:false};
   reader.replaceChildren();
-  opened=new Html5Qrcode(readerId,{formatsToSupport:formats,useBarCodeDetectorIfSupported:false,verbose:false});
+  opened=new Html5Qrcode(readerId,scannerOptions);
   scanner=opened;scannerMode=page;
   scanStatus('Asking iPhone for rear camera…');
-  await opened.start(CameraSettings.cameraConstraint(),page==='boxes'&&!settingsMode?{fps:10}:CameraSettings.scanConfig(),text=>{
+  await opened.start(CameraSettings.cameraConstraint(),isBoxScan?{fps:10}:CameraSettings.scanConfig(),text=>{
    if(generation===cameraGeneration&&scanner===opened)onQrDecoded(text);
   },error=>{
    if(generation!==cameraGeneration||scanner!==opened)return;
