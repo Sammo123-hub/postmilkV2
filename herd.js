@@ -30,8 +30,11 @@ const HerdDemo=(()=>{
   if(!rows.length)return '';
   const list=rows.slice(0,25).map(a=>{
    const k=kind(a.line),linked=byLine(a.line).find(x=>x.sample);
-   const detail=k==='sampled'&&linked?'Sample '+safe(linked.sample):k==='awaiting'?'Already in list':k==='no-sample'?'No sample recorded':'Not yet added';
-   return '<button type="button" class="herd-match '+k+'" data-action="herd-pick" data-line="'+a.line+'"><span class="herd-match-line">'+a.line+'</span><span class="herd-match-meta">'+safe(detail)+'</span><span class="herd-match-add">'+(k==='available'?'+ ADD':'SELECT')+'</span></button>';
+   const detail=k==='sampled'&&linked?'Sample '+safe(linked.sample):k==='awaiting'?'Already in list':k==='no-sample'?'No sample recorded':'';
+   // UI-12 mockup 4.2.1/4.2.2: Available matches show a large line number and + ADD,
+   // in individual pale-blue outlined boxes; no redundant "Not yet added" caption.
+   const detailHtml=detail?'<span class="herd-match-meta">'+safe(detail)+'</span>':'';
+   return '<button type="button" class="herd-match '+k+'" data-action="herd-pick" data-line="'+a.line+'"><span class="herd-match-line">'+a.line+'</span>'+detailHtml+'<span class="herd-match-add">'+(k==='available'?'+ ADD':'SELECT')+'</span></button>';
   }).join('');
   return '<div class="herd-section-label">'+title+' · '+rows.length+'</div>'+list+(rows.length>25?'<p class="herd-overflow-note">Showing 25 matches. Enter more digits to narrow the list.</p>':'');
  }
