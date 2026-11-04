@@ -24,18 +24,19 @@ const CameraSettings=(()=>{
  function html(){
   return '<div class="camera-settings">'+
    '<h2>CAMERA SETTINGS</h2>'+
-   '<p class="camera-settings-tip">Choose the rear camera and adjust the real camera zoom to keep one milk pot in frame. The scan uses the same image as the preview.</p>'+
-   '<div class="camera-settings-preview"><div id="settings-reader"></div><div class="camera-settings-overlay"><span>CAMERA PREVIEW</span><div class="camera-settings-target"></div></div><div class="camera-settings-loading" id="camera-settings-loading">Starting rear camera…</div></div>'+
+   '<p class="camera-settings-tip">Choose the rear camera and hardware zoom. Your saved selections are shown immediately; Safari will report which lenses and zoom levels it supports.</p>'+
    '<label class="field-label" for="camera-device">REAR CAMERA / LENS</label>'+
-   '<select id="camera-device" class="input"><option value="auto">Rear camera — automatic</option></select>'+
-   '<p id="camera-device-note" class="camera-settings-note">Available lenses will appear after camera permission is granted.</p>'+
-   '<div class="camera-zoom-heading"><label class="field-label" for="camera-zoom">CAMERA ZOOM</label><strong id="camera-zoom-value">1×</strong></div>'+
-   '<input type="range" id="camera-zoom" min="1" max="2" step="0.1" value="1" disabled aria-label="Camera zoom">'+
+   '<select id="camera-device" class="input"><option value="auto" '+(saved.deviceId==='auto'?'selected':'')+'>Rear camera — automatic</option>'+
+    (saved.deviceId!=='auto'?'<option selected value="'+safe(saved.deviceId)+'">Saved rear camera (checking availability)</option>':'')+'</select>'+
+   '<p id="camera-device-note" class="camera-settings-note">Checking available rear cameras without restarting the preview…</p>'+
+   '<div class="camera-zoom-heading"><label class="field-label" for="camera-zoom">CAMERA ZOOM</label><strong id="camera-zoom-value">'+fmt(saved.zoom)+'</strong></div>'+
+   '<input type="range" id="camera-zoom" min="1" max="'+Math.max(2,saved.zoom)+'" step="0.1" value="'+saved.zoom+'" disabled aria-label="Camera zoom">'+
    '<div class="camera-zoom-buttons"><button type="button" data-action="camera-zoom-preset" data-zoom="1" disabled>1×</button><button type="button" data-action="camera-zoom-preset" data-zoom="2" disabled>2×</button></div>'+
-   '<p id="camera-zoom-note" class="camera-settings-note">Checking whether Safari exposes hardware zoom…</p>'+
+   '<p id="camera-zoom-note" class="camera-settings-note">Saved setting: '+fmt(saved.zoom)+'. Checking actual camera zoom capability…</p>'+
+   '<div class="camera-settings-preview"><div id="settings-reader"></div><div class="camera-settings-overlay"><span>CAMERA PREVIEW</span><div class="camera-settings-target"></div></div><div class="camera-settings-loading" id="camera-settings-loading">Starting rear camera…</div></div>'+
    '<p id="camera-focus-note" class="camera-settings-note">Autofocus is controlled by the camera unless the browser exposes focus controls.</p>'+
    '<label class="field-label" for="camera-code-format">BARCODE TYPE</label>'+
-   '<select id="camera-code-format" class="input"><option value="qr">QR codes only</option><option value="dm">Data Matrix only — faster for existing pots</option><option value="qr-dm">QR + Data Matrix — compatible with both</option></select>'+
+   '<select id="camera-code-format" class="input"><option value="qr" '+(saved.codeFormat==='qr'?'selected':'')+'>QR codes only</option><option value="dm" '+(saved.codeFormat==='dm'?'selected':'')+'>Data Matrix only — faster for existing pots</option><option value="qr-dm" '+(saved.codeFormat==='qr-dm'?'selected':'')+'>QR + Data Matrix — compatible with both</option></select>'+
    '<p class="camera-settings-note">Data Matrix only checks one barcode format in the central area. Centre the code to scan; use QR + Data Matrix for mixed labels.</p>'+
    '<label class="field-label" for="camera-decoder-engine">DATA MATRIX DECODER</label>'+
    '<select id="camera-decoder-engine" class="input">'+
@@ -95,10 +96,17 @@ const CameraSettings=(()=>{
   return vid?.srcObject?.getVideoTracks?.()[0]||null;
  }
  function capabilities(instance=scanner){
-  try{return instance?.getRunningTrackCapabilities?.()||getTrack()?.getCapabilities?.()||{}}catch{return getTrack()?.getCapabilities?.()||{}}
+  // Some iPhones expose an empty scanner capability object; use live track too.
+  let scannerCaps={},trackCaps={};
+  try{scannerCaps=instance?.getRunningTrackCapabilities?.()||{}}catch{}
+  try{trackCaps=getTrack()?.getCapabilities?.()||{}}catch{}
+  return {...scannerCaps,...trackCaps};
  }
  function trackSettings(instance=scanner){
-  try{return instance?.getRunningTrackSettings?.()||getTrack()?.getSettings?.()||{}}catch{return getTrack()?.getSettings?.()||{}}
+  let scannerSettings={},videoSettings={};
+  try{scannerSettings=instance?.getRunningTrackSettings?.()||{}}catch{}
+  try{videoSettings=getTrack()?.getSettings?.()||{}}catch{}
+  return {...scannerSettings,...videoSettings};
  }
  function supportedZoom(instance=scanner){
   const cap=capabilities(instance).zoom;
@@ -113,26 +121,43 @@ const CameraSettings=(()=>{
  }
  async function listCameras(){
   if(modal!=='camera-settings')return;
-  const select=$('#camera-device');if(!select)return;
+  const select=$('#camera-device');
+  if(!select)return;
   try{
-   const cams=typeof Html5Qrcode?.getCameras==='function'
-    ?await Html5Qrcode.getCameras()
-    :(await navigator.mediaDevices.enumerateDevices()).filter(x=>x.kind==='videoinput').map(x=>({id:x.deviceId,label:x.label}));
-   devices=capDevices((cams||[]).filter(x=>x.id));
-   if(modal!=='camera-settings')return;
-   const valid=devices.some(x=>x.id===saved.deviceId);
-   if(saved.deviceId!=='auto'&&!valid)status('Previously selected lens is not currently exposed. Choose Rear camera — automatic.');
-   const options=['<option value="auto">Rear camera — automatic</option>',...devices.map((x,i)=>
-    '<option value="'+safe(x.id)+'">'+safe(x.label||'Camera '+(i+1))+'</option>'
-   )];
-   select.innerHTML=options.join('');
-   select.value=valid?saved.deviceId:'auto';
+   // Reading the already granted camera list does NOT acquire another
+   // MediaStream, unlike the Html5Qrcode.getCameras() helper.
+   const all=await navigator.mediaDevices.enumerateDevices();
+   if(modal!=='camera-settings'||!select.isConnected)return;
+   const cameras=(all||[]).filter(x=>x.kind==='videoinput'&&x.deviceId)
+    .map(x=>({id:x.deviceId,label:x.label||''}));
+   devices=capDevices(cameras);
+   const activeId=trackSettings(scanner).deviceId||'';
+   if(activeId&&!devices.some(x=>x.id===activeId)){
+    devices.unshift({id:activeId,label:cameras.find(x=>x.id===activeId)?.label||'Currently active rear camera'});
+   }
+   const known=new Set();
+   devices=devices.filter(x=>x.id&&!known.has(x.id)&&!!known.add(x.id));
+   const available=devices.some(x=>x.id===saved.deviceId);
+   const list=['<option value="auto">Rear camera — automatic</option>',
+    ...devices.map((x,i)=>'<option value="'+safe(x.id)+'">'+safe(x.label||'Camera '+(i+1))+'</option>')];
+   // Do not pretend a remembered camera wasn't chosen if Safari has
+   // temporarily hidden its ID. Preserve the selection and explain.
+   if(saved.deviceId!=='auto'&&!available){
+    list.push('<option value="'+safe(saved.deviceId)+'">Previously selected camera (not currently listed)</option>');
+   }
+   select.innerHTML=list.join('');
+   select.value=saved.deviceId;
    const note=$('#camera-device-note');
    if(note)note.textContent=devices.length>1
-    ?devices.length+' selectable cameras reported by this browser. A second physical lens may appear separately.'
-    :devices.length===1?'Safari reports one selectable camera. Additional physical lenses may not be individually exposed.'
-     :'Safari has not exposed separate camera/lens choices.';
-  }catch(e){const note=$('#camera-device-note');if(note)note.textContent='Cannot list additional cameras: '+String(e?.message||e);}
+    ?'Safari lists '+devices.length+' selectable cameras. The names shown are from iOS.'
+    :devices.length===1
+    ?'Safari exposes one rear camera. It may combine multiple physical lenses.'
+    :'Safari is not exposing separate rear-camera choices.';
+   if(saved.deviceId!=='auto'&&!available&&note)note.textContent+=' Saved camera is not in the current list; select Auto or another camera if it cannot start.';
+  }catch(error){
+   const note=$('#camera-device-note');
+   if(note)note.textContent='Camera list unavailable: '+String(error?.message||error)+'. The saved camera and automatic selection remain available.';
+  }
  }
  function updateZoomUI(instance=scanner){
   const range=supportedZoom(instance),slider=$('#camera-zoom'),valueEl=$('#camera-zoom-value'),note=$('#camera-zoom-note');
@@ -154,7 +179,7 @@ const CameraSettings=(()=>{
    const z=Number(button.dataset.zoom);
    button.disabled=z<range.min||z>range.max;
   }
-  note.textContent='Hardware zoom range: '+fmt(range.min)+'–'+fmt(range.max)+'. Actual scan frames use this camera setting.';
+  note.textContent='Hardware zoom range: '+fmt(range.min)+'–'+fmt(range.max)+'. Saved: '+fmt(saved.zoom)+'. Camera reports: '+(Number.isFinite(actual)&&actual>0?fmt(actual):'unavailable')+'.';
  }
  async function setContinuousFocus(instance=scanner){
   if(!instance||!cameraState||cameraState!=='live')return;
@@ -172,9 +197,18 @@ const CameraSettings=(()=>{
   if(!range)return false;
   const value=Math.min(range.max,Math.max(range.min,Number(target)));
   if(!Number.isFinite(value))return false;
-  // Apply constraints directly to the camera used by html5-qrcode.
-  await instance.applyVideoConstraints({advanced:[{zoom:value}]});
-  const actual=Number(trackSettings(instance).zoom);
+  // Use the existing camera track, not a second getUserMedia stream.
+  const constraint={advanced:[{zoom:value}]};
+  const track=getTrack();
+  let firstError=null;
+  try{await instance.applyVideoConstraints(constraint)}
+  catch(error){firstError=error;}
+  let actual=Number(trackSettings(instance).zoom);
+  if((firstError||!Number.isFinite(actual)||actual<=0||Math.abs(actual-value)>0.12)&&track?.applyConstraints){
+   try{await track.applyConstraints(constraint);firstError=null;}
+   catch(error){if(firstError)throw firstError;throw error;}
+   actual=Number(trackSettings(instance).zoom);
+  }else if(firstError)throw firstError;
   const displayed=Number.isFinite(actual)&&actual>0?actual:value;
   if(persist){saved.zoom=value;save();}
   if(modal==='camera-settings'){
@@ -275,7 +309,9 @@ const CameraSettings=(()=>{
  async function chooseCamera(cameraId){
   if(modal!=='camera-settings')return;
   saved.deviceId=cameraId==='auto'||devices.some(x=>x.id===cameraId)?cameraId:'auto';
-  saved.zoom=1;save();zoomRange=null;
+  // Changing lens must not wipe the user's zoom preference. The next
+  // camera session clamps the requested zoom to that lens's capabilities.
+  save();zoomRange=null;
   status('Switching camera…');const z=$('#camera-zoom');if(z)z.disabled=true;
   await stopCamera();
   if(modal==='camera-settings')startCamera();
