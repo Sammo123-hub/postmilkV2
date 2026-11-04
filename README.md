@@ -80,3 +80,19 @@ A **fresh, consolidated, mobile-first application**, designed for a **new GitHub
 ### Suggested test
 
 Search for `0016` in UI-12 (matches `00160`–`00169`). Add `00164`, capture a sample, and search again: `00164` should appear under **SAMPLED**. Choosing it again should display the duplicate warning. Search for a number outside the catalogue (e.g. `00300`) to test the **ADD exactly as typed** flow.
+
+## Data Matrix decoder comparison (v1.3.0)
+
+The original in-browser ZXing JavaScript decoder remains the default. This release adds an **optional experimental ZXing-C++ WebAssembly decoder** for comparison on actual sample pots. No main-screen UI layout or session data structures were changed.
+
+To compare on iPhone: Main menu → **Camera settings** → set **Barcode type** to **Data Matrix only** → change **Data Matrix decoder** between **Original ZXing (current)** and **ZXing-C++ Fast (experimental)** → DONE → return to scanning.
+
+- Uses the exact same existing camera, focus/zoom settings, one-at-a-time animal linking, duplicate checks, and confirmation flow.
+- The alternative loads pinned `zxing-wasm@3.1.6` through jsDelivr, and its reader WASM (~1 MB) downloads only when selected; decoding stays on the device.
+- The old decoder keeps working during initial loading; once WASM is ready the old **decoder** pauses, without stopping or freezing the video.
+- The alternative uses centre-region Data Matrix recognition (one symbol per scan), with occasional more thorough decoding passes to help difficult codes.
+- If WASM fails to load, initialise or decode, the app automatically resumes the existing decoder and reports the fallback.
+- QR-only and QR+Data Matrix modes are not changed by this option. Switching preferences changes the **next** camera start.
+- **Experimental**: iPhone speed/reliability improvement must be measured with actual pots; browser/CPU/network differences matter.
+
+Useful comparison: time 10 normal pots with Original, then 10 with Fast, and also test the one consistently difficult pot. Do not interpret a green camera overlay as a confirmed decoded code.
