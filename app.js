@@ -5,18 +5,32 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.3.2';
+const VERSION='1.3.3';
 const STORAGE='postmilk-clean-1.0';
+// One-time migration for the 70-animal TEST herd release. An old sampling
+// session includes previously linked IDs in localStorage, so clear that
+// session once without touching the user's camera settings/preferences.
+const DEMO_SESSION_RESET='postmilk-demo-clean-70-v1';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
 const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>globalThis.crypto?.randomUUID?.()||String(Date.now())+Math.random().toString(36).slice(2);
 const timeNow=()=>new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 const timestamp=()=>new Date().toISOString();
-const demo=[['88657','2'],['23688','4'],['00207','14.2'],['00042','11.8'],['00163','12.6']];
+const demo=[['00001','2'],['00002','4'],['00003','14.2'],['00004','11.8'],['00005','12.6']];
 function fresh(){return {org:'Brook Farm Partnership',site:'Brook Farm',herd:'123450',session:'S-2410-087',start:'',end:'',yields:true,phase:'setup',animals:[],boxes:[],boxesConfirmed:false,closedAt:'',startedAt:'',confirmedAt:''};}
 function load(){
- let stored=null;try{stored=JSON.parse(localStorage.getItem(STORAGE)||'null')}catch{}
+ let stored=null;
+ try{
+  // This runs once per device/profile. Clear ONLY the old test sampling
+  // session (animals, linked sample IDs and scanned boxes), not the camera
+  // preferences stored under postmilk-camera-preferences-v1.
+  if(localStorage.getItem(DEMO_SESSION_RESET)!=='done'){
+   localStorage.removeItem(STORAGE);
+   localStorage.setItem(DEMO_SESSION_RESET,'done');
+  }
+  stored=JSON.parse(localStorage.getItem(STORAGE)||'null');
+ }catch{}
  const d={...fresh(),...(stored||{})};
  // Import legacy v0.4/v0.5 exports without carrying over the old camera scripts.
  if(stored){
@@ -355,7 +369,7 @@ function openModal(name,which='',options={}){
  stopCamera();modal=name;selectedUid=which||'';
  const animal=animals().find(a=>a.uid===selectedUid);
  let html='';
- if(name==='menu')html=`<h2>Main menu</h2><span class="tinycap">CLEAN BUILD · VERSION ${VERSION}</span>${[['goto-session','Session management'],['goto-linking','Post-milking linking'],['goto-animals','All animals'],['goto-boxes','Sample boxes'],['camera-settings','Camera settings'],['view-test-herd','Test herd · 250 animals'],['export','Export JSON session']].map(([k,v])=>`<button class="menu-row" data-action="${k}">${v}<span>›</span></button>`).join('')}<div class="notice">All data stays on this device. There is no NMR connection in this prototype.</div>${btn('LOAD DEMO ANIMALS','load-demo','outline wide')}${btn('IMPORT JSON SESSION','import','outline wide')}${btn('RESET DEMO SESSION','reset','danger wide')}`;
+ if(name==='menu')html=`<h2>Main menu</h2><span class="tinycap">CLEAN BUILD · VERSION ${VERSION}</span>${[['goto-session','Session management'],['goto-linking','Post-milking linking'],['goto-animals','All animals'],['goto-boxes','Sample boxes'],['camera-settings','Camera settings'],['view-test-herd','Test herd · 70 animals'],['export','Export JSON session']].map(([k,v])=>`<button class="menu-row" data-action="${k}">${v}<span>›</span></button>`).join('')}<div class="notice">All data stays on this device. There is no NMR connection in this prototype.</div>${btn('LOAD DEMO ANIMALS','load-demo','outline wide')}${btn('IMPORT JSON SESSION','import','outline wide')}${btn('RESET DEMO SESSION','reset','danger wide')}`;
  if(name==='camera-settings')html=CameraSettings.html();
  if(name==='edit-session')html=`<h2>Edit session</h2><label class="field-label">ORGANISATION</label><input class="input" id="edit-org" value="${safe(data.org)}"><label class="field-label">SITE / FARM</label><input class="input" id="edit-site" value="${safe(data.site)}"><label class="field-label">HERD</label><input class="input" id="edit-herd" value="${safe(data.herd)}"><label class="field-label">SESSION ID</label><input class="input" id="edit-session-id" value="${safe(data.session)}"><div class="time-row"><label><span class="tinycap">MILKING START</span>${timeInput('edit-start',data.start)}</label><label><span class="tinycap">MILKING END</span>${timeInput('edit-end',data.end)}</label></div><label style="display:flex;align-items:center;gap:9px"><input type="checkbox" id="edit-yields" ${data.yields?'checked':''}> Yields required</label><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('SAVE','save-session','secondary')}</div>`;
  if(name==='add-animal')html=`<h2>Add cow</h2><p class="hint">Enter the line number written on the pot lid.</p><label class="field-label">ANIMAL LINE NUMBER</label><input class="input" id="new-line" maxlength="25" autocomplete="off" inputmode="numeric" placeholder="e.g. 00207"><label class="field-label">YIELD (kg) ${data.yields?'':'(optional)'}</label><input class="input" id="new-yield" type="number" min="0" step="0.1" inputmode="decimal" placeholder="e.g. 14.2"><div class="buttons">${btn('DONE','modal-close','outline')}${btn('ADD COW','save-animal','primary')}</div>`;
