@@ -58,3 +58,50 @@
 .manual-capture-pad button.manual-clear{color:#c5103a;font:800 17px 'Barlow Condensed',Arial,sans-serif}
 .manual-capture-actions{display:flex;gap:8px}
 .manual-capture-actions .btn{flex:1;font-size:16px;min-height:53px;min-width:0}
+
+/* UI-12 Add Animals — 250-animal demo herd search & filtering. */
+.sheet:has(.herd-picker){max-width:460px;max-height:92dvh;overflow:hidden;padding:9px 14px max(12px,env(safe-area-inset-bottom));gap:0}
+.herd-picker{display:flex;flex-direction:column;gap:7px;min-height:0;overflow:hidden;flex:1}
+.herd-picker h2,.herd-catalog h2{font:800 23px 'DM Sans',Arial,sans-serif;color:var(--navy);margin:2px 0 0}
+.herd-subtitle{font:400 12px/1.4 'DM Sans',Arial,sans-serif;color:#537080;margin:0 0 3px}
+.herd-pick-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.herd-section-label{display:block;font:800 13px 'Barlow Condensed',Arial,sans-serif;color:var(--blue);letter-spacing:.1em;padding:6px 0 4px}
+.herd-done{border:0;border-radius:5px;background:var(--navy);color:#fff;font:800 14px 'Barlow Condensed',Arial,sans-serif;letter-spacing:.06em;min-height:32px;padding:6px 16px}
+.herd-current-code{display:flex;gap:7px;align-items:stretch}
+.herd-current-code input{flex:1;min-width:0;min-height:44px;border:2px solid #cbdce5;border-radius:5px;padding:6px 11px;font:700 25px 'DM Sans',Arial,sans-serif;letter-spacing:.07em;color:var(--navy);background:#fff}
+.herd-current-code button{border:1px solid #cbdce5;background:#f4f8fa;color:#b11a3c;font:800 15px 'Barlow Condensed',Arial,sans-serif;padding:0 14px;border-radius:5px}
+.herd-result-scroll{flex:1 1 220px;min-height:100px;overflow-y:auto;overscroll-behavior:contain;border:1px solid #dde6eb;border-radius:6px;padding:7px 9px;background:#fff}
+.herd-match{width:100%;min-height:45px;border:0;border-bottom:1px solid #e5edf1;background:#fff;display:flex;align-items:center;gap:8px;padding:7px 3px;text-align:left;color:var(--navy)}
+.herd-match:active{background:#eff7fb}
+.herd-match-line{font:700 18px 'DM Sans',Arial,sans-serif;letter-spacing:.03em;min-width:60px}
+.herd-match-meta{font:600 11px 'DM Sans',Arial,sans-serif;color:#617480;overflow-wrap:anywhere;flex:1}
+.herd-match-add{font:800 14px 'Barlow Condensed',Arial,sans-serif;color:#007b5d;white-space:nowrap;letter-spacing:.05em}
+.herd-match.sampled .herd-match-add{color:#a9791c}
+.herd-match.awaiting .herd-match-add,.herd-match.no-sample .herd-match-add{color:#738390}
+.herd-overflow-note{font:400 11px/1.45 'DM Sans',Arial,sans-serif;color:#58727c;margin:5px 0 0}
+.herd-empty-result{color:#516d78;font:500 13px/1.5 'DM Sans',Arial,sans-serif;padding:13px 4px}
+.herd-number-pad{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;flex:none}
+.herd-number-pad button{border:1px solid #cad7dd;border-radius:5px;background:#eef4f7;color:var(--navy);min-height:40px;font:700 19px 'DM Sans',Arial,sans-serif}
+.herd-number-pad button:active{background:#d7ebf4}
+.herd-number-pad .herd-add-key{background:var(--red);border-color:var(--red);color:#fff;font:800 17px 'Barlow Condensed',Arial,sans-serif}
+.herd-view-full{border:1px solid #a7bfd0;background:#eef6fc;color:var(--navy);border-radius:5px;min-height:36px;flex:none;font:800 13px 'Barlow Condensed',Arial,sans-serif;letter-spacing:.05em}
+.herd-warning{border:1px solid #ecbb9e;background:#fff8ed;border-radius:7px;padding:12px;color:#703d15;font-size:13px;line-height:1.5}
+.herd-warning strong{font-size:15px}
+.herd-warning p{margin:6px 0}
+.herd-warning .buttons{margin-top:10px}
+.sheet:has(.herd-catalog){max-width:540px;max-height:92dvh;overflow:auto;padding:12px 14px max(15px,env(safe-area-inset-bottom))}
+.herd-catalog{display:flex;flex-direction:column;gap:9px;min-height:0}
+.herd-filter-row{display:flex;flex-wrap:wrap;gap:5px}
+.herd-filter-row button{font:700 11px 'DM Sans',Arial,sans-serif;border:1px solid #d2e1e9;border-radius:20px;background:#eef3f6;color:#496675;padding:7px 9px;min-height:31px}
+.herd-filter-row button.active{background:var(--navy);border-color:var(--navy);color:white}
+.herd-catalog-scroll{overflow-y:auto;max-height:37dvh;border:1px solid #dce7ed;border-radius:5px}
+.herd-catalog-row{display:flex;align-items:center;gap:8px;padding:8px 7px;border-bottom:1px solid #e9eef2;font-size:11px}
+.herd-catalog-row strong{font:700 17px 'DM Sans',Arial,sans-serif;min-width:66px}
+.herd-catalog-row span{color:#78909c;flex:1}
+.herd-catalog-row em{font:800 11px 'Barlow Condensed',Arial,sans-serif;letter-spacing:.03em;font-style:normal;color:#177858;text-align:right}
+.herd-catalog-row em.sampled{color:#a66f00}
+.herd-catalog-row em.awaiting{color:#bc1e45}
+.herd-catalog-row em.no-sample{color:#60747d}
+.herd-yield{display:flex;flex-direction:column;gap:9px}
+.herd-yield p{font-size:13px;line-height:1.45}
+@media(max-height:700px){.herd-result-scroll{flex-basis:110px}.herd-number-pad button{min-height:34px}}
