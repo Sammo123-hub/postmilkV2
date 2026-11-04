@@ -6,13 +6,14 @@
 'use strict';
 const CameraSettings=(()=>{
  const KEY='postmilk-camera-preferences-v1';
- const defaults={deviceId:'auto',zoom:1,codeFormat:'qr'};
+ const defaults={deviceId:'auto',zoom:1,codeFormat:'qr',engine:'js'};
  let saved={...defaults};
  try{
   const value=JSON.parse(localStorage.getItem(KEY)||'null');
   if(value&&typeof value==='object'){
    saved.deviceId=typeof value.deviceId==='string'?value.deviceId:'auto';
    saved.codeFormat=['qr','qr-dm','dm'].includes(value.codeFormat)?value.codeFormat:'qr';
+   saved.engine=value.engine==='wasm'?'wasm':'js';
    const z=Number(value.zoom);saved.zoom=Number.isFinite(z)&&z>=.5&&z<=10?z:1;
   }
  }catch{}
@@ -36,6 +37,12 @@ const CameraSettings=(()=>{
    '<label class="field-label" for="camera-code-format">BARCODE TYPE</label>'+
    '<select id="camera-code-format" class="input"><option value="qr">QR codes only</option><option value="dm">Data Matrix only — faster for existing pots</option><option value="qr-dm">QR + Data Matrix — compatible with both</option></select>'+
    '<p class="camera-settings-note">Data Matrix only checks one barcode format in the central area. Centre the code to scan; use QR + Data Matrix for mixed labels.</p>'+
+   '<label class="field-label" for="camera-decoder-engine">DATA MATRIX DECODER</label>'+
+   '<select id="camera-decoder-engine" class="input">'+
+    '<option value="js" '+(saved.engine==='js'?'selected':'')+'>Original ZXing (current)</option>'+
+    '<option value="wasm" '+(saved.engine==='wasm'?'selected':'')+'>ZXing-C++ Fast (experimental)</option></select>'+
+   '<p class="camera-settings-note">Applies only when Barcode type is Data Matrix only. Fast runs a different decoder on the same camera and falls back automatically if unavailable. First use downloads about 1 MB.</p>'+
+   '<p id="camera-fast-status" class="camera-settings-note"></p>'+
    '<div class="camera-settings-status" id="camera-settings-status" role="status" aria-live="polite">Preparing camera…</div>'+
    '<div class="buttons"><button type="button" class="btn outline" data-action="camera-reset">DEFAULTS</button><button type="button" class="btn secondary" data-action="camera-settings-done">DONE</button></div>'+
    '</div>';
@@ -65,6 +72,14 @@ const CameraSettings=(()=>{
     return {width:w,height:h};
    }
   };
+ }
+ function fastMatrixSelected(){return saved.codeFormat==='dm'&&saved.engine==='wasm';}
+ function chooseEngine(next){
+  saved.engine=next==='wasm'?'wasm':'js';
+  save();
+  status(saved.engine==='wasm'
+   ?'Fast Data Matrix decoder selected. Press DONE, then reopen scanning to try it.'
+   :'Original decoder selected. Press DONE, then reopen scanning.');
  }
  function chooseFormat(next){
   saved.codeFormat=['qr','qr-dm','dm'].includes(next)?next:'qr';save();
@@ -269,6 +284,7 @@ const CameraSettings=(()=>{
   if(!instance||cameraState!=='live')return;
   if(modal==='camera-settings'){
    const select=$('#camera-code-format');if(select)select.value=saved.codeFormat;
+   const decoderSelect=$('#camera-decoder-engine');if(decoderSelect)decoderSelect.value=saved.engine;
    status('Camera live. Checking lens and zoom controls…');
    const loading=$('#camera-settings-loading');if(loading)loading.hidden=true;
    await listCameras();
@@ -306,5 +322,5 @@ const CameraSettings=(()=>{
  function noteError(err){
   if(modal==='camera-settings')status('Camera could not start: '+String(err?.message||err)+'. Try Defaults or allow camera access.');
  }
- return {html,cameraConstraint,formats,scanConfig,chooseFormat,onStarted,onStopped,monitor,start,chooseCamera,setZoom,reset,noteError,capabilities,trackSettings};
+ return {html,cameraConstraint,formats,scanConfig,chooseFormat,fastMatrixSelected,chooseEngine,onStarted,onStopped,monitor,start,chooseCamera,setZoom,reset,noteError,capabilities,trackSettings};
 })();
