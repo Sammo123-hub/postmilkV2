@@ -1,0 +1,15 @@
+{
+  "id": "./",
+  "name": "Post-Milking Sampling",
+  "short_name": "Milk Sampling",
+  "description": "Post-milking milk sample linking prototype",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0d1b2a",
+  "icons": [
+    {"src":"./icon-192.png","type":"image/png","sizes":"192x192"},
+    {"src":"./icon-512.png","type":"image/png","sizes":"512x512"}
+  ]
+}
