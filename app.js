@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.3.3';
+const VERSION='1.3.4';
 const STORAGE='postmilk-clean-1.0';
 // One-time migration for the 70-animal TEST herd release. An old sampling
 // session includes previously linked IDs in localStorage, so clear that
@@ -63,7 +63,7 @@ function sound(){try{const Audio=window.AudioContext||window.webkitAudioContext;
 const btn=(label,act,cls='',attrs='')=>`<button class="btn ${cls}" type="button" data-action="${act}" ${attrs}>${label}</button>`;
 function normalTime(value){let s=String(value||'').trim();if(!s)return '';if(/^\d{4}$/.test(s))s=s.slice(0,2)+':'+s.slice(2);const match=s.match(/^(\d{1,2}):(\d{2})$/);if(!match)return '';const h=+match[1],m=+match[2];return h<=23&&m<=59?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`:'';}
 function timeInput(id,value){return `<input class="time-input" id="${id}" value="${safe(value)}" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocorrect="off" autocapitalize="off" autocomplete="off" spellcheck="false" aria-label="${id.includes('start')?'Milking start':'Milking end'} time" data-complete="${normalTime(value)?'1':'0'}">`;}
-function header(){let name={session:'Session management',linking:'Milk Sampling',animals:'Animals',boxes:'Sample boxes'}[page];return `<div class="top"><div class="top-inner"><div class="top-name">${name}</div><div class="top-actions"><span class="top-save" id="save-state">${pendingSave?'NOT SAVED':'SAVED'}</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button></div></div></div><div class="farm-strip">${safe(data.site)} · ${page==='session'?'SESSION '+safe(data.session):'POST-MILKING · HERD '+safe(data.herd)}</div>`;}
+function header(){let name={session:'Session management',linking:'Milk Sampling',animals:'Animals',boxes:'Scan sample boxes'}[page];return `<div class="top"><div class="top-inner"><div class="top-name">${page==='boxes'?'<button type="button" class="box-back" data-action="goto-session" aria-label="Back to Session management">‹</button>':''}${name}</div><div class="top-actions"><span class="top-save" id="save-state">${pendingSave?'NOT SAVED':'SAVED'}</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button></div></div></div><div class="farm-strip">${safe(data.site)} · ${page==='session'||page==='boxes'?'SESSION '+safe(data.session):'POST-MILKING · HERD '+safe(data.herd)}</div>`;}
 function stage(number,title,state,content='',current=false){return `<section class="stage ${current?'current':state==='Complete'?'complete':''}">${current?'<span class="tinycap">CURRENT · NEXT STEP</span>':''}<div class="stage-row"><span class="stage-num">${state==='Complete'?'✓':number}</span><span class="stage-title">${safe(title)}</span><span class="stage-state ${state==='Complete'?'done':''}">${safe(state)}</span></div>${content}</section>`;}
 function detail(k,v){return `<div><span class="tinycap">${safe(k)}</span><div class="detail-value">${safe(v)}</div></div>`;}
 function sessionScreen(){
@@ -125,8 +125,44 @@ function animalsScreen(){const chosen=animals().filter(a=>filter==='all'||filter
  const buttons=['all','awaiting','linked','no-sample'].map(key=>`<button type="button" class="pill ${filter===key?'active':''}" data-action="filter" data-filter="${key}">${safe(key.toUpperCase())}</button>`).join('');
  const html=`<div class="pillrow">${buttons}</div><div class="section-head"><strong>ANIMAL LIST · ${chosen.length}</strong></div><div>${chosen.map(a=>animalCard(a)).join('')||'<div class="empty">No animals in this view.</div>'}</div><p class="hint">Tap an animal to edit, remove a link or mark No sample.</p>`;
  return [html,btn('BACK TO LINKING','goto-linking','secondary wide')];}
-function boxesScreen(){const html=`<div class="heading">Sample boxes</div><p class="hint">Scan each box once. Only box IDs are recorded on this prototype.</p>${data.phase==='closed'?'':cameraMarkup()}<div class="section-head"><strong>SCANNED BOXES · <span id="box-count">${data.boxes.length}</span></strong></div><div id="box-list">${data.boxes.map(b=>`<div class="menu-row"><strong>${safe(b.id)}</strong><span>${safe(b.time)}</span></div>`).join('')||'<div class="empty">No boxes scanned yet.</div>'}</div><label class="notice" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="confirm-boxes" ${data.boxesConfirmed?'checked':''} ${data.phase==='closed'?'disabled':''} style="width:23px;height:23px;accent-color:var(--green)"><span>I have scanned all sample boxes for this session.</span></label>`;
- return [html,btn('BACK TO SESSION','goto-session','secondary wide')];}
+// UI-39: Sample Boxes states in mockups 4.0.9, 4.0.10 and 4.0.11.
+// The manual box-number entry is an intentional extra to the mockup.
+function boxListMarkup(){
+ return data.boxes.length
+  ?data.boxes.map(b=>'<div class="box-scan-row"><strong>'+safe(b.id)+'</strong><span>Scanned '+safe(b.time)+'</span></div>').join('')
+  :'<div class="box-scan-empty">No boxes scanned yet.</div>';
+}
+function boxCameraMarkup(){
+ return '<div class="box-scan-frame" id="camera-panel">'+
+  '<div class="box-scan-video" id="qr-reader"></div>'+
+  '<div class="camera-placeholder" id="camera-placeholder">Starting camera…</div>'+
+  '<div class="box-scan-overlay"><strong>SCAN BOX BARCODE</strong><span>Each box is recorded against this session</span></div>'+
+  '<div class="scan-affirm" id="scan-affirm" hidden>✓ BOX RECORDED</div>'+
+  '<button type="button" class="btn secondary camera-retry" id="camera-retry" data-action="retry-camera" hidden>RETRY CAMERA</button>'+
+  '</div>';
+}
+function boxesScreen(){
+ const closed=data.phase==='closed',count=data.boxes.length;
+ const canConfirm=count>0&&!closed,canDone=closed||(count>0&&data.boxesConfirmed);
+ const html='<div class="box-scan-screen">'+
+  '<div class="box-scan-intro"><span>Scan the QR code on each box used.</span>'+
+   '<span class="box-camera-indicator" id="box-camera-indicator"><i aria-hidden="true"></i><span id="camera-badge">'+(closed?'CAMERA OFF':'STARTING')+'</span></span></div>'+
+  (closed?'<div class="box-scan-closed">This session is closed. Scanned boxes are shown below.</div>':boxCameraMarkup())+
+  '<div class="scan-status" id="scan-status" role="status" hidden></div>'+
+  (closed?'':'<button type="button" class="box-manual-button" data-action="manual-sample">+ ADD BOX NUMBER MANUALLY</button>')+
+  '<section class="box-scan-card" aria-label="Scanned sample boxes">'+
+   '<div class="box-scan-card-heading">SCANNED BOXES · <span id="box-count">'+count+'</span></div>'+
+   '<div id="box-list" class="box-scan-list">'+boxListMarkup()+'</div>'+
+  '</section></div>';
+ const footer='<div class="box-scan-footer">'+
+  '<label class="box-scan-confirm'+(canConfirm||closed?'':' inactive')+'" id="box-confirm-label">'+
+   '<input type="checkbox" id="confirm-boxes" '+(data.boxesConfirmed?'checked':'')+' '+(canConfirm?'':'disabled')+'>'+
+   '<span>I have scanned all sample boxes used for this sampling session.</span>'+
+  '</label>'+
+  '<button type="button" class="btn primary box-done" data-action="boxes-done" id="boxes-done" '+(canDone?'':'disabled')+'>DONE</button>'+
+  '</div>';
+ return [html,footer];
+}
 function render(){const [html,foot]=({session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen}[page]||sessionScreen)();$('#app').innerHTML=`<div class="app">${header()}<main class="body" id="main-scroll">${html}</main>${foot?`<footer class="bottom">${foot}</footer>`:''}</div>`;updateDebug();}
 function refreshLinkingAfterScan(){
  // Intentionally never render() or replace #qr-reader during a successful QR read.
@@ -135,7 +171,7 @@ function refreshLinkingAfterScan(){
  const count=$('#await-count');if(count)count.textContent=String(waiting().length);
  if(!waiting().length){$('#awaiting-section')?.remove();}
 }
-function scanStatus(message,isError=false){const el=modal==='capture'?$('#capture-status'):$('#scan-status');if(el){el.textContent=message;el.classList.toggle('error',isError);if(page==='linking'||modal==='capture')el.hidden=!isError;}updateDebug();}
+function scanStatus(message,isError=false){const el=modal==='capture'?$('#capture-status'):$('#scan-status');if(el){el.textContent=message;el.classList.toggle('error',isError);if(page==='linking'||page==='boxes'||modal==='capture')el.hidden=!isError;}updateDebug();}
 function flash(){const e=$('#scan-affirm');if(!e)return;e.textContent=page==='boxes'?'✓ BOX RECORDED':'✓ LINKED';e.hidden=false;setTimeout(()=>{if(e.isConnected)e.hidden=true},520);}
 function linkSample(raw,specificUid=''){
  const code=String(raw??'').trim();if(!code){toast('Enter a Sample ID');return false}
@@ -148,10 +184,17 @@ function linkSample(raw,specificUid=''){
  if(!waiting().length&&page==='linking')setTimeout(()=>{stopCamera();},350);
  return true;
 }
-function boxScan(raw){const code=String(raw||'').trim();if(!code)return false;if(data.boxes.some(b=>b.id===code)){scanStatus('Already scanned box '+code);return false}
+function boxScan(raw){
+ const code=String(raw||'').trim();if(!code)return false;
+ if(data.boxes.some(b=>b.id===code)){scanStatus('Box '+code+' has already been scanned.',true);return false;}
  data.boxes.push({id:code,time:timeNow()});data.boxesConfirmed=false;store();sound();
- const el=$('#box-list');if(el)el.innerHTML=data.boxes.map(b=>`<div class="menu-row"><strong>${safe(b.id)}</strong><span>${safe(b.time)}</span></div>`).join('');const num=$('#box-count');if(num)num.textContent=data.boxes.length;
- const cb=$('#confirm-boxes');if(cb)cb.checked=false;scanStatus('✓ Box '+code+' recorded. Ready for next box.');flash();return true;}
+ const list=$('#box-list');if(list)list.innerHTML=boxListMarkup();
+ const count=$('#box-count');if(count)count.textContent=String(data.boxes.length);
+ const cb=$('#confirm-boxes');if(cb){cb.checked=false;cb.disabled=false;}
+ $('#box-confirm-label')?.classList.remove('inactive');
+ const done=$('#boxes-done');if(done)done.disabled=true;
+ scanStatus('✓ Box '+code+' recorded. Ready for next box.');flash();return true;
+}
 
 // ── The ONLY camera/decoder implementation in this app. ──
 // Matches the actual iPhone-tested standalone QR diagnostic's Html5Qrcode options.
@@ -246,7 +289,7 @@ async function testLiveFrame(){
   if(button.isConnected){button.disabled=false;button.textContent=label;}
  }
 }
-function updateCameraButton(){const e=$('[data-action="camera-toggle"]');if(e)e.textContent=cameraState==='live'?'STOP CAMERA':cameraState==='starting'?'STARTING…':'START CAMERA';const label=$('#camera-badge');if(label)label.textContent=cameraState==='live'?'CAMERA ON':cameraState==='starting'?'STARTING':'CAMERA OFF';const capture=$('#capture-badge');if(capture)capture.textContent=cameraState==='live'?'CAMERA ON':cameraState==='starting'?'CAMERA STARTING':'CAMERA OFF';updateDebug();}
+function updateCameraButton(){const e=$('[data-action="camera-toggle"]');if(e)e.textContent=cameraState==='live'?'STOP CAMERA':cameraState==='starting'?'STARTING…':'START CAMERA';const label=$('#camera-badge');if(label)label.textContent=cameraState==='live'?'CAMERA ON':cameraState==='starting'?'STARTING':'CAMERA OFF';const boxIndicator=$('#box-camera-indicator');if(boxIndicator)boxIndicator.classList.toggle('is-live',cameraState==='live');const capture=$('#capture-badge');if(capture)capture.textContent=cameraState==='live'?'CAMERA ON':cameraState==='starting'?'CAMERA STARTING':'CAMERA OFF';updateDebug();}
 function onQrDecoded(value){
  const capturing=modal==='capture'&&!!selectedUid&&data.phase==='linking';
  if(captureCompleting||!scanner||(!capturing&&(modal||(page!=='linking'&&page!=='boxes'))))return;
@@ -321,12 +364,12 @@ async function startCamera(){
   if(generation!==cameraGeneration||!reader.isConnected)return;
   if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)throw Error('Camera requires HTTPS and permission in Safari.');
   // Same exact tested options: QR_CODE = numeric zero, NEVER truthiness-filter it.
-  const formats=CameraSettings.formats();
+  const formats=page==='boxes'&&!settingsMode?[Html5QrcodeSupportedFormats.QR_CODE]:CameraSettings.formats();
   reader.replaceChildren();
   opened=new Html5Qrcode(readerId,{formatsToSupport:formats,useBarCodeDetectorIfSupported:false,verbose:false});
   scanner=opened;scannerMode=page;
   scanStatus('Asking iPhone for rear camera…');
-  await opened.start(CameraSettings.cameraConstraint(),CameraSettings.scanConfig(),text=>{
+  await opened.start(CameraSettings.cameraConstraint(),page==='boxes'&&!settingsMode?{fps:10}:CameraSettings.scanConfig(),text=>{
    if(generation===cameraGeneration&&scanner===opened)onQrDecoded(text);
   },error=>{
    if(generation!==cameraGeneration||scanner!==opened)return;
@@ -338,6 +381,7 @@ async function startCamera(){
   });
   if(generation!==cameraGeneration||scanner!==opened){try{await opened.stop()}catch{}try{await opened.clear()}catch{}return}
   cameraState='live';
+  if(page==='boxes'&&!settingsMode)$('#camera-panel')?.classList.add('is-live');
   $('#camera-retry')?.setAttribute('hidden','');
   (capturing?$('#capture-placeholder'):$('#camera-placeholder'))?.setAttribute('hidden','');
   const video=reader.querySelector('video');if(video){video.setAttribute('playsinline','');video.muted=true}
@@ -345,7 +389,7 @@ async function startCamera(){
   await CameraSettings.onStarted(opened);
   // Optional alternative decoder on the SAME running camera. The original JS
   // decoder continues until WASM is ready, and is restored if WASM fails.
-  if(!settingsMode&&generation===cameraGeneration&&scanner===opened&&CameraSettings.fastMatrixSelected()){
+  if(!settingsMode&&page!=='boxes'&&generation===cameraGeneration&&scanner===opened&&CameraSettings.fastMatrixSelected()){
    await FastMatrix.attach(opened,reader,
     ()=>generation===cameraGeneration&&scanner===opened,
     code=>onQrDecoded(code));
@@ -373,7 +417,7 @@ function openModal(name,which='',options={}){
  if(name==='camera-settings')html=CameraSettings.html();
  if(name==='edit-session')html=`<h2>Edit session</h2><label class="field-label">ORGANISATION</label><input class="input" id="edit-org" value="${safe(data.org)}"><label class="field-label">SITE / FARM</label><input class="input" id="edit-site" value="${safe(data.site)}"><label class="field-label">HERD</label><input class="input" id="edit-herd" value="${safe(data.herd)}"><label class="field-label">SESSION ID</label><input class="input" id="edit-session-id" value="${safe(data.session)}"><div class="time-row"><label><span class="tinycap">MILKING START</span>${timeInput('edit-start',data.start)}</label><label><span class="tinycap">MILKING END</span>${timeInput('edit-end',data.end)}</label></div><label style="display:flex;align-items:center;gap:9px"><input type="checkbox" id="edit-yields" ${data.yields?'checked':''}> Yields required</label><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('SAVE','save-session','secondary')}</div>`;
  if(name==='add-animal')html=`<h2>Add cow</h2><p class="hint">Enter the line number written on the pot lid.</p><label class="field-label">ANIMAL LINE NUMBER</label><input class="input" id="new-line" maxlength="25" autocomplete="off" inputmode="numeric" placeholder="e.g. 00207"><label class="field-label">YIELD (kg) ${data.yields?'':'(optional)'}</label><input class="input" id="new-yield" type="number" min="0" step="0.1" inputmode="decimal" placeholder="e.g. 14.2"><div class="buttons">${btn('DONE','modal-close','outline')}${btn('ADD COW','save-animal','primary')}</div>`;
- if(name==='manual')html=`<h2>${page==='boxes'?'Enter Box ID':'Enter Sample ID'}</h2><p class="hint">Manual entry is a fallback; the camera should scan continuously during normal linking.</p><label class="field-label">${page==='boxes'?'BOX ID':'SAMPLE ID'}</label><input class="input" id="manual-id" autocomplete="off" placeholder="Scan code value"><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('LINK','save-manual','secondary')}</div>`;
+ if(name==='manual')html=`<h2>${page==='boxes'?'Add box number manually':'Enter Sample ID'}</h2><p class="hint">${page==='boxes'?'Enter the barcode number printed on the sample box. It will be added to the scanned-box list.':'Manual entry is a fallback; the camera should scan continuously during normal linking.'}</p><label class="field-label">${page==='boxes'?'BOX NUMBER':'SAMPLE ID'}</label><input class="input" id="manual-id" autocomplete="off" placeholder="${page==='boxes'?'Box barcode number':'Scan code value'}"><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn(page==='boxes'?'ADD BOX':'LINK','save-manual','secondary')}</div>`;
  if(name==='animal'&&animal){html=`<h2>Animal ${safe(animal.line)}</h2><div class="notice">Status: ${animal.sample?'Linked to '+safe(animal.sample):animal.noSampleReason?'No sample — '+safe(animal.noSampleReason):'Awaiting sample'}</div>${!animal.sample&&!animal.noSampleReason&&data.phase==='linking'?btn('TYPE SAMPLE ID','type-animal-sample','secondary wide'):''}<label class="field-label">LINE NUMBER</label><input class="input" id="animal-line" value="${safe(animal.line)}"><label class="field-label">YIELD (kg)</label><input class="input" id="animal-yield" type="number" step="0.1" min="0" value="${safe(animal.yield)}"><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('SAVE DETAILS','save-animal-details','secondary')}</div>${animal.sample?btn('REMOVE SAMPLE LINK','unlink-animal','outline wide'):!animal.noSampleReason?btn('MARK NO SAMPLE','no-sample','soft wide'):btn('UNDO NO SAMPLE','undo-no-sample','soft wide')}${btn('REMOVE ANIMAL','remove-animal','danger wide')}`;}
  if(name==='manual-animal'&&animal){
   const position=animals().indexOf(animal)+1;
@@ -429,6 +473,7 @@ function doAction(action,button){
   data.org=$('#edit-org').value.trim()||data.org;data.site=$('#edit-site').value.trim()||data.site;data.herd=$('#edit-herd').value.trim()||data.herd;data.session=$('#edit-session-id').value.trim()||data.session;data.start=normalTime(rawStart);data.end=normalTime(rawEnd);data.yields=$('#edit-yields').checked;store();closeModal(false);render();break;}
  case 'start-link':if(!normalTime(data.start)||!normalTime(data.end))return toast('Enter both milking times first');data.phase=animals().length?'check':'adding';store();navigate('linking');break;
  case 'goto-session':navigate('session');break;
+ case 'boxes-done':if(data.phase==='closed'||(data.boxes.length>0&&data.boxesConfirmed))navigate('session');else toast('Scan at least one box and confirm all boxes are scanned.');break;
  case 'goto-linking':navigate('linking',{autoCamera:true});break;
  case 'goto-animals':filter='all';navigate('animals');break;
  case 'goto-boxes':if(data.phase!=='confirmed'&&data.phase!=='closed')return toast('Confirm sample linking before scanning boxes');navigate('boxes',{autoCamera:data.phase!=='closed'});break;
@@ -516,7 +561,7 @@ document.addEventListener('change',e=>{
  if(e.target.id==='camera-device'){CameraSettings.chooseCamera(e.target.value);return;}
  if(e.target.id==='camera-code-format'){CameraSettings.chooseFormat(e.target.value);return;}
  if(e.target.id==='camera-decoder-engine'){CameraSettings.chooseEngine(e.target.value);return;}
- if(e.target.id==='confirm-boxes'){data.boxesConfirmed=e.target.checked;store();}
+ if(e.target.id==='confirm-boxes'){data.boxesConfirmed=data.boxes.length>0&&e.target.checked;store();const done=$('#boxes-done');if(done)done.disabled=!data.boxesConfirmed;}
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal)closeModal();if(e.key==='Enter'&&e.target.id==='new-line'){e.preventDefault();$('#new-yield')?.focus()}if(e.key==='Enter'&&e.target.id==='manual-id'){e.preventDefault();doAction('save-manual',e.target)}});
 window.addEventListener('pagehide',()=>{stopCamera()});
