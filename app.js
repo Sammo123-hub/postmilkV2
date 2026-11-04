@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.3.5';
+const VERSION='1.3.6';
 const STORAGE='postmilk-clean-1.0';
 // One-time migration for the 70-animal TEST herd release. An old sampling
 // session includes previously linked IDs in localStorage, so clear that
