@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.1.3';
+const VERSION='1.2.0';
 const STORAGE='postmilk-clean-1.0';
 const $=(s,root=document)=>root.querySelector(s);
 const $$=(s,root=document)=>Array.from(root.querySelectorAll(s));
@@ -145,7 +145,7 @@ let scanner=null,scannerMode='',cameraState='off',cameraGeneration=0,stopping=Pr
 let lastScanId='',lastScanTime=0,lastError='',lastDetected='';
 let captureCompleting=false,captureCompletionTimer=null;
 let scanAttempts=0,scanError='',decoderSource='',scanSuccessCount=0,videoTrackState='—',frameDebugTimer=0,frameTestBusy=false;
-function getScannerVideo(){return modal==='capture'?$('#capture-reader video'):$('#qr-reader video')}
+function getScannerVideo(){return modal==='capture'?$('#capture-reader video'):modal==='camera-settings'?$('#settings-reader video'):$('#qr-reader video')}
 function readVideoTrack(){try{const v=getScannerVideo(),t=v?.srcObject?.getVideoTracks?.()[0],s=t?.getSettings?.()||{};return `${t?.readyState||'none'}${s.width&&s.height?` · ${s.width}×${s.height}`:''}${s.facingMode?` · ${s.facingMode}`:''}`}catch{return 'unknown'}}
 function checkCameraVideo(){const v=getScannerVideo();return `${v?.videoWidth||0} × ${v?.videoHeight||0}${v?` · ready ${v.readyState} · paused ${v.paused}`:''}`}
 
@@ -290,10 +290,11 @@ async function stopCamera(){
 async function startCamera(){
  if(scanner||cameraState==='starting')return;
  const capturing=modal==='capture'&&!!selectedUid&&data.phase==='linking';
- if(!capturing&&page==='linking'&&(data.phase!=='linking'||!waiting().length))return;
- if(!capturing&&page!=='linking'&&page!=='boxes')return;
- if(modal&&!capturing)return;
- const readerId=capturing?'capture-reader':'qr-reader';
+ const settingsMode=modal==='camera-settings';
+ if(!capturing&&!settingsMode&&page==='linking'&&(data.phase!=='linking'||!waiting().length))return;
+ if(!capturing&&!settingsMode&&page!=='linking'&&page!=='boxes')return;
+ if(modal&&!capturing&&!settingsMode)return;
+ const readerId=settingsMode?'settings-reader':capturing?'capture-reader':'qr-reader';
  const reader=document.getElementById(readerId);
  if(!reader)return;
  const generation=++cameraGeneration;cameraState='starting';lastError='';scanError='';scanAttempts=0;scanSuccessCount=0;updateCameraButton();scanStatus('Loading QR decoder…');
@@ -309,7 +310,7 @@ async function startCamera(){
   opened=new Html5Qrcode(readerId,{formatsToSupport:[format],useBarCodeDetectorIfSupported:false,verbose:false});
   scanner=opened;scannerMode=page;
   scanStatus('Asking iPhone for rear camera…');
-  await opened.start({facingMode:'environment'},{fps:10},text=>{
+  await opened.start(CameraSettings.cameraConstraint(),{fps:10},text=>{
    if(generation===cameraGeneration&&scanner===opened)onQrDecoded(text);
   },error=>{
    if(generation!==cameraGeneration||scanner!==opened)return;
@@ -325,6 +326,7 @@ async function startCamera(){
   (capturing?$('#capture-placeholder'):$('#camera-placeholder'))?.setAttribute('hidden','');
   const video=reader.querySelector('video');if(video){video.setAttribute('playsinline','');video.muted=true}
   updateCameraButton();scanStatus('CAMERA LIVE — point at the next QR code');
+  await CameraSettings.onStarted(opened);
   // Only update the diagnostics, never re-render the camera or animal list.
   clearInterval(frameDebugTimer);
   frameDebugTimer=setInterval(()=>{if(scanner===opened&&generation===cameraGeneration)updateDebug();else{clearInterval(frameDebugTimer);frameDebugTimer=0}},1800);
@@ -332,7 +334,7 @@ async function startCamera(){
   if(generation!==cameraGeneration)return;
   lastError=String(err?.message||err);cameraState='off';scanner=null;scannerMode='';
   if(opened){try{await opened.stop()}catch{}try{await opened.clear()}catch{}}
-  updateCameraButton();scanStatus('CAMERA ERROR — '+lastError,true);(capturing?$('#capture-retry'):$('#camera-retry'))?.removeAttribute('hidden');
+  updateCameraButton();scanStatus('CAMERA ERROR — '+lastError,true);(capturing?$('#capture-retry'):$('#camera-retry'))?.removeAttribute('hidden');if(settingsMode)CameraSettings.noteError(err);
  }
 }
 async function navigate(to,{autoCamera=false}={}){
@@ -344,7 +346,8 @@ function openModal(name,which='',options={}){
  stopCamera();modal=name;selectedUid=which||'';
  const animal=animals().find(a=>a.uid===selectedUid);
  let html='';
- if(name==='menu')html=`<h2>Main menu</h2><span class="tinycap">CLEAN BUILD · VERSION ${VERSION}</span>${[['goto-session','Session management'],['goto-linking','Post-milking linking'],['goto-animals','All animals'],['goto-boxes','Sample boxes'],['view-test-herd','Test herd · 250 animals'],['export','Export JSON session']].map(([k,v])=>`<button class="menu-row" data-action="${k}">${v}<span>›</span></button>`).join('')}<div class="notice">All data stays on this device. There is no NMR connection in this prototype.</div>${btn('LOAD DEMO ANIMALS','load-demo','outline wide')}${btn('IMPORT JSON SESSION','import','outline wide')}${btn('RESET DEMO SESSION','reset','danger wide')}`;
+ if(name==='menu')html=`<h2>Main menu</h2><span class="tinycap">CLEAN BUILD · VERSION ${VERSION}</span>${[['goto-session','Session management'],['goto-linking','Post-milking linking'],['goto-animals','All animals'],['goto-boxes','Sample boxes'],['camera-settings','Camera settings'],['view-test-herd','Test herd · 250 animals'],['export','Export JSON session']].map(([k,v])=>`<button class="menu-row" data-action="${k}">${v}<span>›</span></button>`).join('')}<div class="notice">All data stays on this device. There is no NMR connection in this prototype.</div>${btn('LOAD DEMO ANIMALS','load-demo','outline wide')}${btn('IMPORT JSON SESSION','import','outline wide')}${btn('RESET DEMO SESSION','reset','danger wide')}`;
+ if(name==='camera-settings')html=CameraSettings.html();
  if(name==='edit-session')html=`<h2>Edit session</h2><label class="field-label">ORGANISATION</label><input class="input" id="edit-org" value="${safe(data.org)}"><label class="field-label">SITE / FARM</label><input class="input" id="edit-site" value="${safe(data.site)}"><label class="field-label">HERD</label><input class="input" id="edit-herd" value="${safe(data.herd)}"><label class="field-label">SESSION ID</label><input class="input" id="edit-session-id" value="${safe(data.session)}"><div class="time-row"><label><span class="tinycap">MILKING START</span>${timeInput('edit-start',data.start)}</label><label><span class="tinycap">MILKING END</span>${timeInput('edit-end',data.end)}</label></div><label style="display:flex;align-items:center;gap:9px"><input type="checkbox" id="edit-yields" ${data.yields?'checked':''}> Yields required</label><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('SAVE','save-session','secondary')}</div>`;
  if(name==='add-animal')html=`<h2>Add cow</h2><p class="hint">Enter the line number written on the pot lid.</p><label class="field-label">ANIMAL LINE NUMBER</label><input class="input" id="new-line" maxlength="25" autocomplete="off" inputmode="numeric" placeholder="e.g. 00207"><label class="field-label">YIELD (kg) ${data.yields?'':'(optional)'}</label><input class="input" id="new-yield" type="number" min="0" step="0.1" inputmode="decimal" placeholder="e.g. 14.2"><div class="buttons">${btn('DONE','modal-close','outline')}${btn('ADD COW','save-animal','primary')}</div>`;
  if(name==='manual')html=`<h2>${page==='boxes'?'Enter Box ID':'Enter Sample ID'}</h2><p class="hint">Manual entry is a fallback; the camera should scan continuously during normal linking.</p><label class="field-label">${page==='boxes'?'BOX ID':'SAMPLE ID'}</label><input class="input" id="manual-id" autocomplete="off" placeholder="Scan code value"><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('LINK','save-manual','secondary')}</div>`;
@@ -380,9 +383,9 @@ function openModal(name,which='',options={}){
  if(name==='confirm-linking')html=`<h2>All samples linked?</h2><p class="hint">${waiting().length?`${waiting().length} animals are still awaiting samples. Link them or mark them as No sample before confirming.`:'All animals have been dealt with. Confirm this stage to continue to sample boxes.'}</p>${dupLines().size?`<div class="notice warning">Duplicate animal line numbers need resolving first.</div>`:''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
  if(name==='confirm-close')html=`<h2>Close sampling session?</h2><p class="hint">Closing makes this session read-only. Data is not sent to NMR. Export the JSON if you need a copy.</p><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('CLOSE SESSION','do-close','danger')}</div>`;
  $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':'Post-milking'}">${name==='capture'||name==='herd-picker'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
- const focus=({ 'add-animal':'new-line',manual:'manual-id'})[name];if(focus)$('#'+focus)?.focus();if(name==='capture'&&!options.skipCamera)startCamera();
+ const focus=({ 'add-animal':'new-line',manual:'manual-id'})[name];if(focus)$('#'+focus)?.focus();if(name==='capture'&&!options.skipCamera)startCamera();if(name==='camera-settings')CameraSettings.start();
 }
-function closeModal(resume=true){clearTimeout(captureCompletionTimer);captureCompletionTimer=null;captureCompleting=false;if(modal==='capture')stopCamera();modal='';selectedUid='';$('#modal-root').replaceChildren();if(resume&&((page==='linking'&&data.phase==='linking'&&waiting().length)||page==='boxes'))startCamera();}
+function closeModal(resume=true){clearTimeout(captureCompletionTimer);captureCompletionTimer=null;captureCompleting=false;if(modal==='capture'||modal==='camera-settings')stopCamera();modal='';selectedUid='';$('#modal-root').replaceChildren();if(resume&&((page==='linking'&&data.phase==='linking'&&waiting().length)||page==='boxes'))startCamera();}
 function addDemo(){if(animals().length){toast('Demo animals can be loaded only into an empty list.');return}for(const [line,yieldKg] of demo)data.animals.push({uid:uid(),line,yield:yieldKg,sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false});store();closeModal(false);page='linking';render();toast('Five demo animals added.');}
 function makeAnimal(){const line=$('#new-line')?.value.trim()||'',yieldKg=$('#new-yield')?.value.trim()||'';if(!line||!/^[-\w]{1,25}$/.test(line))return toast('Enter a valid animal line number');if(animals().some(a=>a.line===line))return toast('Animal already in this list');if(yieldKg!==''&&(!Number.isFinite(+yieldKg)||+yieldKg<0))return toast('Invalid milk yield');
  data.animals.push({uid:uid(),line,yield:yieldKg,sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false});if(data.phase==='setup')data.phase='adding';store();closeModal(false);render();openModal('add-animal');toast(`${line} added`);}
@@ -393,6 +396,10 @@ function doAction(action,button){
  case 'menu':openModal('menu');break;
  case 'modal-close':closeModal();break;
  case 'backdrop':closeModal();break;
+ case 'camera-settings':openModal('camera-settings');break;
+ case 'camera-settings-done':closeModal();break;
+ case 'camera-reset':CameraSettings.reset();break;
+ case 'camera-zoom-preset':CameraSettings.setZoom(button.dataset.zoom);break;
  case 'edit-session':openModal('edit-session');break;
  case 'save-session':{
   const rawStart=$('#edit-start').value,rawEnd=$('#edit-end').value;if(rawStart&&!normalTime(rawStart)||rawEnd&&!normalTime(rawEnd))return toast('Enter valid HH:MM times');
@@ -468,7 +475,9 @@ function doAction(action,button){
 }
 document.addEventListener('click',e=>{const button=e.target.closest('[data-action]');if(!button||button.disabled)return;if(button.dataset.action==='backdrop'&&button!==e.target)return;e.preventDefault();doAction(button.dataset.action,button)});
 document.addEventListener('input',e=>{
- const el=e.target;if(!['milking-start','milking-end','edit-start','edit-end'].includes(el.id))return;
+ const el=e.target;
+ if(el.id==='camera-zoom'){CameraSettings.setZoom(el.value);return;}
+ if(!['milking-start','milking-end','edit-start','edit-end'].includes(el.id))return;
  const t=normalTime(el.value);if(/^\d{4}$/.test(el.value)&&t)el.value=t;
  if(el.id==='milking-start'||el.id==='milking-end'){
   data[el.id==='milking-start'?'start':'end']=t;store();const start=$('[data-action="start-link"]');if(start)start.disabled=!(normalTime(data.start)&&normalTime(data.end));
@@ -479,7 +488,10 @@ document.addEventListener('input',e=>{
  }
  if(!t)el.dataset.complete='0';
 });
-document.addEventListener('change',e=>{if(e.target.id==='confirm-boxes'){data.boxesConfirmed=e.target.checked;store();}});
+document.addEventListener('change',e=>{
+ if(e.target.id==='camera-device'){CameraSettings.chooseCamera(e.target.value);return;}
+ if(e.target.id==='confirm-boxes'){data.boxesConfirmed=e.target.checked;store();}
+});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal)closeModal();if(e.key==='Enter'&&e.target.id==='new-line'){e.preventDefault();$('#new-yield')?.focus()}if(e.key==='Enter'&&e.target.id==='manual-id'){e.preventDefault();doAction('save-manual',e.target)}});
 window.addEventListener('pagehide',()=>{stopCamera()});
 window.addEventListener('visibilitychange',()=>{if(document.hidden&&scanner)stopCamera()});
