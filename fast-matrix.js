@@ -52,11 +52,11 @@ const FastMatrix=(()=>{
   stop();
   try{instance.resume();}catch{}
   report('Fast decoder unavailable; using the existing Data Matrix decoder. '+String(message||''));
+  if(typeof toast==='function')toast('Fast decoder unavailable — original Data Matrix scanner restored.');
   if(reader)reader.classList.remove('fast-matrix-active');
  }
  async function attach(instance,reader,current,onDecoded){
   if(!enabled()||!instance||!reader||!current())return false;
-  const myToken=++token;
   stop(); // cancel any earlier attempts from another camera
   const thisToken=token;
   try{
