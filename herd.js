@@ -49,17 +49,27 @@ const HerdDemo=(()=>{
   if(result)return result;
   return query?'<div class="herd-empty-result">No matching herd animal for <strong>'+safe(query)+'</strong>.<br>Use ADD to enter this line number exactly as typed.</div>':'<div class="herd-empty-result">Enter a line number to search the test herd.</div>';
  }
+ function sessionCountRow(){
+  // Session totals, not total-herd counts. Refreshed each time UI-12 opens.
+  const records=animals();
+  const awaiting=records.filter(a=>!a.sample&&!a.noSampleReason).length;
+  const linked=records.filter(a=>!!a.sample).length;
+  const noSample=records.filter(a=>!!a.noSampleReason).length;
+  return '<div class="herd-session-counts" aria-label="Sampling session progress">'+
+   '<span class="herd-session-count awaiting">'+awaiting+' awaiting</span>'+
+   '<span class="herd-session-count linked">'+linked+' linked</span>'+
+   '<span class="herd-session-count no-sample">'+noSample+' no sample</span>'+
+   '<button type="button" class="herd-close" data-action="modal-close" aria-label="Close Add Animals">×</button>'+
+   '</div>';
+ }
  function picker(){
   return '<div class="herd-picker">'+
-   '<h2>ADD ANIMALS</h2>'+
-   '<p class="herd-subtitle">UI-12 · Enter the line number written on each sample pot. Matching herd animals appear below.</p>'+
+   sessionCountRow()+
    '<div class="herd-pick-top"><label class="herd-section-label" for="herd-search">LINE NUMBER · ADD TO LIST</label><button type="button" data-action="herd-done" class="herd-done">DONE</button></div>'+
    '<div class="herd-current-code"><input id="herd-search" type="text" readonly inputmode="none" value="'+safe(query)+'" placeholder="Line number" aria-label="Animal line number">'+
    '<button type="button" data-action="herd-clear" aria-label="Clear line number">CLR</button></div>'+
    '<div class="herd-result-scroll" id="herd-results">'+searchResults()+'</div>'+
    padHtml()+
-   '<button class="herd-view-full" type="button" data-action="herd-view-catalog">VIEW ALL 250 TEST HERD ANIMALS</button>'+
-   '<p class="herd-overflow-note">Herd catalogue and sampling list are separate. Selecting a herd animal adds a sampling-list record.</p>'+
    '</div>';
  }
  function refreshPicker(){
