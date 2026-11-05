@@ -5,8 +5,10 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.3.7';
+const VERSION='1.4.0';
 const STORAGE='postmilk-clean-1.0';
+const SESSIONS_STORAGE='postmilk-sessions-v1';
+const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
 // One-time migration for the 70-animal TEST herd release. An old sampling
 // session includes previously linked IDs in localStorage, so clear that
 // session once without touching the user's camera settings/preferences.
@@ -47,7 +49,66 @@ function load(){
  d.boxes=Array.isArray(d.boxes)?d.boxes.filter(b=>b&&b.id).map(b=>({id:String(b.id),time:String(b.time||'')})):[];
  return d;
 }
-let data=load(),page='session',modal='',selectedUid='',filter='all';
+// Keep the previous single-session storage readable, while saving multiple
+// independent sessions in a registry. Existing session is migrated once.
+function normaliseRecord(raw){
+ const result={...fresh(),...raw};
+ result.recordId=typeof result.recordId==='string'&&result.recordId?result.recordId:uid();
+ result.animals=Array.isArray(result.animals)?result.animals:[];
+ result.boxes=Array.isArray(result.boxes)?result.boxes:[];
+ return result;
+}
+function readSessionRegistry(previous){
+ try{
+  const parsed=JSON.parse(localStorage.getItem(SESSIONS_STORAGE)||'null');
+  if(Array.isArray(parsed))return parsed.filter(x=>x&&typeof x==='object').map(normaliseRecord);
+ }catch{}
+ // Preserve a real pre-existing single-session record. Do not manufacture a
+ // blank session after Clear Test Data; the user creates a new session.
+ let hasOld=false;
+ try{hasOld=!!localStorage.getItem(STORAGE)}catch{}
+ if(hasOld)return [normaliseRecord(previous)];
+ return [];
+}
+let data=load(),sessions=readSessionRegistry(data),activeRecordId='',page='sessions',modal='',selectedUid='',filter='all';
+try{activeRecordId=localStorage.getItem(ACTIVE_SESSION_STORAGE)||''}catch{}
+if(!sessions.some(x=>x.recordId===activeRecordId))activeRecordId=sessions[0]?.recordId||'';
+if(activeRecordId)data=sessions.find(x=>x.recordId===activeRecordId);
+else data=normaliseRecord(fresh());
+function persistRegistry(){
+ try{
+  localStorage.setItem(SESSIONS_STORAGE,JSON.stringify(sessions));
+  if(activeRecordId)localStorage.setItem(ACTIVE_SESSION_STORAGE,activeRecordId);
+  else localStorage.removeItem(ACTIVE_SESSION_STORAGE);
+  if(activeRecordId)localStorage.setItem(STORAGE,JSON.stringify(data));
+  else localStorage.removeItem(STORAGE);
+  pendingSave=false;
+ }catch(error){
+  pendingSave=true;
+  toast('Browser storage unavailable. Export the session.');
+ }
+ const indicator=$('#save-state');
+ if(indicator)indicator.textContent=pendingSave?'NOT SAVED':'SAVED';
+}
+function syncActiveSession(){
+ if(!activeRecordId)return;
+ const idx=sessions.findIndex(x=>x.recordId===activeRecordId);
+ if(idx>=0)sessions[idx]=data;
+ else sessions.unshift(data);
+}
+function sessionPhaseLabel(record){
+ if(record.phase==='closed')return 'Closed';
+ if(record.phase==='confirmed')return record.boxesConfirmed?'Ready to close':'Sample boxes';
+ return ({setup:'Not started',adding:'Adding animals',check:'Check animal order',linking:'Linking samples'})[record.phase]||'In progress';
+}
+function newSessionId(){
+ const stamp=new Date().toLocaleDateString('en-CA').replace(/-/g,'');
+ let serial=1,id='';
+ do{id='S-'+stamp+'-'+String(serial++).padStart(3,'0');}
+ while(sessions.some(x=>x.session===id));
+ return id;
+}
+
 let pendingSave=false,toaster=0,soundCtx=null;
 const animals=()=>data.animals.filter(a=>!a.removed);
 const linked=()=>animals().filter(a=>!!a.sample);
@@ -57,7 +118,7 @@ const next=()=>waiting()[0]||null;
 const latest=()=>linked().slice().sort((a,b)=>b.linkedSequence-a.linkedSequence)[0]||null;
 const dupLines=()=>{const map=new Map();for(const a of animals())map.set(a.line,(map.get(a.line)||0)+1);return new Set([...map].filter(([,n])=>n>1).map(([line])=>line));};
 const canFinish=()=>!waiting().length&&!dupLines().size;
-function store(){try{localStorage.setItem(STORAGE,JSON.stringify(data));pendingSave=false;}catch(e){pendingSave=true;toast('Browser storage unavailable. Export the session.');}const e=$('#save-state');if(e)e.textContent=pendingSave?'NOT SAVED':'SAVED';}
+function store(){syncActiveSession();persistRegistry();}
 function toast(t){if(!$('#toast-root'))return;$('#toast-root').innerHTML=`<div class="toast">${safe(t)}</div>`;clearTimeout(toaster);toaster=setTimeout(()=>$('#toast-root').replaceChildren(),3000);}
 function sound(){try{const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)return;soundCtx||=new Audio();const o=soundCtx.createOscillator(),g=soundCtx.createGain();o.frequency.value=840;g.gain.setValueAtTime(.075,soundCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,soundCtx.currentTime+.14);o.connect(g).connect(soundCtx.destination);o.start();o.stop(soundCtx.currentTime+.15);navigator.vibrate?.(40);}catch{}}
 const btn=(label,act,cls='',attrs='')=>`<button class="btn ${cls}" type="button" data-action="${act}" ${attrs}>${label}</button>`;
