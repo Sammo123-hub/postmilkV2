@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.5.0';
+const VERSION='1.5.1';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -298,8 +298,7 @@ function sessionScreen(){
    (data.phase==='closed'?'':btn(testedCount?'MANAGE TESTS':'ADD TESTS','goto-tests','secondary wide'))
   :'';
  const stages=stage(1,'Sample linking',stage1,body,data.phase!=='confirmed'&&data.phase!=='closed')+
- stage(2,'Sync & consolidation',data.phase==='confirmed'||data.phase==='closed'?'Complete':'Available',
-  '<div class="hint">No live NMR connection in this prototype. Manage files and test data here.</div>'+btn('DATA MANAGEMENT','goto-data','outline wide'))+
+ stage(2,'Sync & consolidation',data.phase==='confirmed'||data.phase==='closed'?'Complete':'Locked',data.phase==='confirmed'||data.phase==='closed'?'<div class="hint">Single-device prototype: no synchronisation service connected.</div>':'')+
  stage(3,'Issues',dupLines().size?'Outstanding':data.phase==='confirmed'||data.phase==='closed'?'Complete':'Locked',dupLines().size?`${btn('REVIEW DUPLICATE LINE NUMBERS','goto-animals','outline wide')}`:'')+
  stage(4,'Add tests',addTestsState,addTestsContent,!!sampledCount&&data.phase!=='closed')+
  stage(5,'Sample boxes',data.boxesConfirmed?'Complete':data.phase==='confirmed'?'Outstanding':'Locked',data.phase==='confirmed'?btn('SCAN SAMPLE BOXES','goto-boxes','secondary wide'):'');
