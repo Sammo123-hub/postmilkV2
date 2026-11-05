@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.4.1';
+const VERSION='1.4.2';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -136,7 +136,7 @@ function sound(){try{const Audio=window.AudioContext||window.webkitAudioContext;
 const btn=(label,act,cls='',attrs='')=>`<button class="btn ${cls}" type="button" data-action="${act}" ${attrs}>${label}</button>`;
 function normalTime(value){let s=String(value||'').trim();if(!s)return '';if(/^\d{4}$/.test(s))s=s.slice(0,2)+':'+s.slice(2);const match=s.match(/^(\d{1,2}):(\d{2})$/);if(!match)return '';const h=+match[1],m=+match[2];return h<=23&&m<=59?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`:'';}
 function timeInput(id,value){return `<input class="time-input" id="${id}" value="${safe(value)}" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocorrect="off" autocapitalize="off" autocomplete="off" spellcheck="false" aria-label="${id.includes('start')?'Milking start':'Milking end'} time" data-complete="${normalTime(value)?'1':'0'}">`;}
-function header(){let name={sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',boxes:'Scan sample boxes',tests:'Test management'}[page];return `<div class="top"><div class="top-inner"><div class="top-name">${page==='boxes'?'<button type="button" class="box-back" data-action="goto-session" aria-label="Back to Session management">‹</button>':(page==='session'||page==='tests')?'<button type="button" class="box-back" data-action="goto-sessions" aria-label="Back to Sampling sessions">‹</button>':''}${name}</div><div class="top-actions"><span class="top-save" id="save-state">${pendingSave?'NOT SAVED':'SAVED'}</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button></div></div></div><div class="farm-strip">${page==='sessions'?'POST-MILKING · SESSION OVERVIEW':safe(data.site)+' · '+(page==='session'||page==='boxes'?'SESSION '+safe(data.session):'HERD '+safe(data.herd))}</div>`;}
+function header(){let name={sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',boxes:'Scan sample boxes',tests:'Test management'}[page];return `<div class="top"><div class="top-inner"><div class="top-name">${(page==='boxes'||page==='tests')?'<button type="button" class="box-back" data-action="goto-session" aria-label="Back to Session management">‹</button>':page==='session'?'<button type="button" class="box-back" data-action="goto-sessions" aria-label="Back to Sampling sessions">‹</button>':''}${name}</div><div class="top-actions"><span class="top-save" id="save-state">${pendingSave?'NOT SAVED':'SAVED'}</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button></div></div></div><div class="farm-strip">${page==='sessions'?'POST-MILKING · SESSION OVERVIEW':safe(data.site)+' · '+(page==='session'||page==='boxes'?'SESSION '+safe(data.session):'HERD '+safe(data.herd))}</div>`;}
 function stage(number,title,state,content='',current=false){return `<section class="stage ${current?'current':state==='Complete'?'complete':''}">${current?'<span class="tinycap">CURRENT · NEXT STEP</span>':''}<div class="stage-row"><span class="stage-num">${state==='Complete'?'✓':number}</span><span class="stage-title">${safe(title)}</span><span class="stage-state ${state==='Complete'?'done':''}">${safe(state)}</span></div>${content}</section>`;}
 function detail(k,v){return `<div><span class="tinycap">${safe(k)}</span><div class="detail-value">${safe(v)}</div></div>`;}
 const TEST_TYPES=['JOHNES','BVD','PAG','NEO'];
@@ -196,10 +196,18 @@ function sessionScreen(){
  else if(data.phase==='closed')body='<div class="notice ok">Session is closed and read-only.</div>';
  else if(data.phase==='confirmed')body=`<div class="notice ok">${linked().length} linked · ${noSample().length} no sample</div>${btn('REOPEN LINKING','reopen-linking','outline wide')}`;
  else body=`${btn('OPEN SAMPLE LINKING','goto-linking','secondary wide')}<div style="height:7px"></div>${btn('ALL SAMPLES LINKED','confirm-linking','outline wide')}`;
+ const sampledCount=sampledAnimals().length;
+ const testedCount=sampledAnimals().filter(a=>animalTests(a).length>0).length;
+ const addTestsState=data.phase==='closed'?(testedCount?'Complete':'Not required'):!sampledCount?'Locked':testedCount?testedCount+' with tests':'Optional';
+ const addTestsContent=sampledCount
+  ?'<div class="hint">'+testedCount+' of '+sampledCount+' sampled animals have tests.</div>'+
+   (data.phase==='closed'?'':btn(testedCount?'MANAGE TESTS':'ADD TESTS','goto-tests','secondary wide'))
+  :'';
  const stages=stage(1,'Sample linking',stage1,body,data.phase!=='confirmed'&&data.phase!=='closed')+
  stage(2,'Sync & consolidation',data.phase==='confirmed'||data.phase==='closed'?'Complete':'Locked',data.phase==='confirmed'||data.phase==='closed'?'<div class="hint">Single-device prototype: no synchronisation service connected.</div>':'')+
  stage(3,'Issues',dupLines().size?'Outstanding':data.phase==='confirmed'||data.phase==='closed'?'Complete':'Locked',dupLines().size?`${btn('REVIEW DUPLICATE LINE NUMBERS','goto-animals','outline wide')}`:'')+
- stage(4,'Sample boxes',data.boxesConfirmed?'Complete':data.phase==='confirmed'?'Outstanding':'Locked',data.phase==='confirmed'?btn('SCAN SAMPLE BOXES','goto-boxes','secondary wide'):'');
+ stage(4,'Add tests',addTestsState,addTestsContent,!!sampledCount&&data.phase!=='closed')+
+ stage(5,'Sample boxes',data.boxesConfirmed?'Complete':data.phase==='confirmed'?'Outstanding':'Locked',data.phase==='confirmed'?btn('SCAN SAMPLE BOXES','goto-boxes','secondary wide'):'');
  const html=`<div class="tinycap">SESSION STATUS</div><div class="heading">${status}</div><section class="card"><div class="details-head"><span class="tinycap">SESSION DETAILS</span>${data.phase!=='closed'?btn('EDIT','edit-session','secondary smallbtn'):'<span>READ ONLY</span>'}</div><div class="details-grid">${detail('ORGANISATION',data.org)}${detail('SITE · ST-120455',data.site)}${detail('HERD',data.herd)}${detail('METHOD','Post-milking')}${detail('MILKING',`${data.start||'—'} – ${data.end||'—'}`)}${detail('SESSION ID',data.session)}${detail('YIELDS',data.yields?'Required':'Not required')}${detail('DEVICES','1 device')}</div></section>${stages}`;
  const foot=data.phase==='closed'?btn('EXPORT SESSION','export','outline wide'):btn('CLOSE SAMPLING SESSION','ask-close','primary wide',data.phase==='confirmed'&&data.boxesConfirmed&&!dupLines().size?'':'disabled');
  return [html,foot];
