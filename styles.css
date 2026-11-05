@@ -261,3 +261,26 @@
 /* Test Management rows are linked samples, not the herd catalogue. */
 .test-manager-animal{display:flex;flex-direction:column;gap:3px;min-width:0}
 .test-manager-animal>span{color:#607d8b;font:500 12px "DM Sans",Arial,sans-serif;overflow-wrap:anywhere}
+
+
+/* Data Management — session flows, clearly simulated NMR transfer and test tools. */
+.data-hub{display:flex;flex-direction:column;gap:12px;max-width:700px;width:100%;margin:0 auto;padding-bottom:10px}
+.data-hub>.hint{margin:0 0 3px}
+.data-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.data-summary-grid>div{display:flex;flex-direction:column;gap:5px;border:1px solid #dbe5eb;border-radius:7px;background:#f5f9fc;padding:12px;min-width:0}
+.data-summary-grid strong{font:700 24px "Barlow Condensed",Arial,sans-serif;color:#0d1b2a;line-height:1}
+.data-summary-grid span{font:500 12px/1.4 "DM Sans",Arial,sans-serif;color:#526778}
+.data-hub-card{display:flex;flex-direction:column;gap:10px;background:#fff;border:1px solid #dbe5eb;border-radius:8px;padding:14px;min-width:0}
+.data-hub-card>.hint{margin:0}
+.data-hub-card>.field-label{margin:7px 0 0}
+.data-hub-card>.btn{min-height:48px}
+.data-hub-status{font:700 18px/1.35 "DM Sans",Arial,sans-serif;color:#0d1b2a;background:#eef6fc;border:1px solid #c7dfea;border-radius:6px;padding:10px}
+.data-hub-row{display:flex;flex-direction:column;gap:5px}
+.data-hub-row strong{font:700 15px "DM Sans",Arial,sans-serif;color:#0d1b2a}
+.data-hub-row span{font:500 12.5px/1.5 "DM Sans",Arial,sans-serif;color:#607d8b}
+.data-hub-row+.data-hub-row{border-top:1px solid #e1e9ef;padding-top:11px}
+.data-hub-controls{display:flex;gap:8px;align-items:stretch;min-width:0}
+.data-hub-controls input{width:84px;min-width:74px;max-width:104px;flex:none;text-align:center;font:700 20px "DM Sans",Arial,sans-serif}
+.data-hub-controls .btn{flex:1;min-width:0;min-height:50px;font-size:15px}
+.data-hub-controls .btn:disabled{opacity:.55}
+@media(max-width:350px){.data-hub-controls{gap:6px}.data-hub-controls input{width:72px;min-width:66px}.data-hub-controls .btn{font-size:13px}}
