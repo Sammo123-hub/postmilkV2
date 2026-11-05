@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.5.2';
+const VERSION='1.5.3';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -176,7 +176,7 @@ function sessionsScreen(){
 function testManagementScreen(){
  const sampled=sampledAnimals();
  const view=sampled.filter(a=>(testFilter==='with'?testManagerDraft.has(a.uid):testFilter==='without'?!testManagerDraft.has(a.uid):true)&&(!testQuery||a.line.includes(testQuery)||a.sample.includes(testQuery)));
- const rows=view.map(a=>{const existing=animalTests(a);return '<label class="test-manager-row"><input type="checkbox" data-test-uid="'+safe(a.uid)+'" '+(testManagerDraft.has(a.uid)?'checked':'')+'><span class="test-manager-animal"><strong>'+safe(a.line)+'</strong><span>Sample '+safe(a.sample)+'</span>'+(existing.length?'<span>Tests: '+existing.map(t=>safe(t)).join(', ')+'</span>':'')+'</span></label>';}).join('');
+ const rows=view.map(a=>{const existing=animalTests(a);return '<label class="test-manager-row"><input type="checkbox" data-test-uid="'+safe(a.uid)+'" '+(testManagerDraft.has(a.uid)?'checked':'')+'><span class="test-manager-animal"><span class="test-manager-main"><strong>'+safe(a.line)+'</strong><span class="test-manager-sample" aria-label="Sample ID '+safe(a.sample)+'">'+safe(a.sample)+'</span></span>'+(existing.length?'<span class="test-manager-assignments">Tests: '+existing.map(t=>safe(t)).join(', ')+'</span>':'')+'</span></label>';}).join('');
  const selected=testManagerDraft.size;
  return ['<div class="test-management"><div class="tinycap">TEST MANAGEMENT · '+sampled.length+' SAMPLED ANIMALS</div>'+
   '<p class="hint">Only sampled animals in this session are shown. Each sample can be used for multiple tests.</p>'+
@@ -185,7 +185,9 @@ function testManagementScreen(){
   '<input class="input" id="test-search" type="search" placeholder="Search line or sample ID" value="'+safe(testQuery)+'">'+
   '<button type="button" class="btn outline wide" data-action="test-select-all" '+(view.length?'':'disabled')+'>SELECT ALL SHOWN</button>'+
   '<div class="test-management-rows">'+(rows||'<p class="hint">'+(sampled.length?'No sampled animals match this filter.':'No sampled animals yet. Link sample pots to animals first.')+'</p>')+'</div></div>',
-  '<button type="button" class="btn secondary wide" data-action="test-save" '+(sampled.length?'':'disabled')+'>SAVE '+currentTest+' · '+selected+' ANIMALS</button>'];
+  '<div class="test-management-actions">'+
+  '<button type="button" class="btn outline" data-action="test-save" '+(sampled.length?'':'disabled')+'>SAVE '+currentTest+' · '+selected+' ANIMALS</button>'+
+  '<button type="button" class="btn secondary" data-action="test-done">DONE</button></div>'];
 }
 // Data Management is a local-only testing hub. A simulated NMR delivery is
 // explicitly distinct from actual network transmission (not implemented).
@@ -717,14 +719,41 @@ function closeModal(resume=true){clearTimeout(captureCompletionTimer);captureCom
 function addDemo(){if(animals().length){toast('Demo animals can be loaded only into an empty list.');return}for(const [line,yieldKg] of demo)data.animals.push({uid:uid(),line,yield:yieldKg,sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false});store();closeModal(false);page='linking';render();toast('Five demo animals added.');}
 function makeAnimal(){const line=$('#new-line')?.value.trim()||'',yieldKg=$('#new-yield')?.value.trim()||'';if(!line||!/^[-\w]{1,25}$/.test(line))return toast('Enter a valid animal line number');if(animals().some(a=>a.line===line))return toast('Animal already in this list');if(yieldKg!==''&&(!Number.isFinite(+yieldKg)||+yieldKg<0))return toast('Invalid milk yield');
  data.animals.push({uid:uid(),line,yield:yieldKg,sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false});if(data.phase==='setup')data.phase='adding';store();closeModal(false);render();openModal('add-animal');toast(`${line} added`);}
-function exportJSON(){const blob=new Blob([JSON.stringify({app:'Post-milking Sampling',version:VERSION,exportedAt:timestamp(),...data},null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`postmilk-${data.session.replace(/[^a-z0-9-]/gi,'_')}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);closeModal(false);}
+function downloadJson(text,fileName){
+ const blob=new Blob([text],{type:'application/json'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=fileName;a.click();
+ setTimeout(()=>URL.revokeObjectURL(url),3000);
+}
+function exportJSON(){
+ if(!activeRecordId)return toast('Select a session before exporting.');
+ const when=timestamp(),fileName=`postmilk-${String(data.session).replace(/[^a-z0-9-]/gi,'_')}.json`;
+ const nextRevision=(Number(data.changeRevision)||0)+1;
+ // Export an immutable snapshot of the session. Do not recursively embed an
+ // earlier outbound JSON copy inside the new file.
+ const snapshot={...data,changeRevision:nextRevision};
+ delete snapshot.nmrOutbound;
+ delete snapshot.nmrMockSentAt;
+ delete snapshot.nmrMockSentRevision;
+ const json=JSON.stringify({app:'Post-milking Sampling',version:VERSION,exportedAt:when,...snapshot},null,2);
+ data.nmrOutbound={compiledAt:when,sentAt:when,fileName,revision:nextRevision,json};
+ store();
+ downloadJson(json,fileName);
+ if(page==='data')render();
+ closeModal(false);
+}
+function downloadCompiledJSON(){
+ const saved=outboundSnapshot();
+ if(!saved)return toast('No compiled JSON has been recorded for this session.');
+ downloadJson(saved.json,saved.fileName||'session.json');
+}
 async function importJSON(file){if(!file)return;try{const text=await file.text(),parsed=JSON.parse(text);if(!Array.isArray(parsed.animals)||!parsed.session)throw Error('Not a sampling session export');if(!confirm('Import this session? It will add this session without deleting existing sessions.'))return;data=normaliseRecord(parsed);if(sessions.some(x=>x.session===data.session))data.session+='-IMPORTED';activeRecordId=data.recordId;while(sessions.some(x=>x.recordId===activeRecordId)){data.recordId=uid();activeRecordId=data.recordId;}sessions.push(data);store();await navigate('session');toast('Session imported');}catch(e){toast('Unable to import: '+e.message)}}
 function doAction(action,button){
  switch(action){
  case 'menu':openModal('menu');break;
  case 'goto-sessions':navigate('sessions');break;
  case 'goto-data':if(!activeRecordId)return toast('Create or select a session first.');navigate('data');break;
- case 'simulate-nmr-send':if(!activeRecordId)return toast('Select a session first.');data.nmrMockSentAt=timestamp();data.nmrMockSentRevision=Number(data.changeRevision)||0;syncActiveSession();persistRegistry();render();toast('Simulated send recorded locally. No data sent to NMR.');break;
+ case 'download-compiled-json':downloadCompiledJSON();break;
  case 'data-add-animals':{
   const count=readTestCount('data-add-count',remainingTestHerd().length);
   if(count===null)return toast('Enter a whole number within the available herd count.');
@@ -791,6 +820,11 @@ function doAction(action,button){
  case 'test-save':
   for(const a of sampledAnimals())assignSampledTest(a.uid,currentTest,testManagerDraft.has(a.uid));
   store();testFilter='all';render();toast(currentTest+' tests saved. Samples remain available for other tests.');break;
+ case 'test-done':
+  // Save current tab's pending choices before leaving, but do not mark test
+  // selection finished or change the Sample Boxes locking rules.
+  for(const a of sampledAnimals())assignSampledTest(a.uid,currentTest,testManagerDraft.has(a.uid));
+  store();navigate('session');break;
  
  case 'modal-close':closeModal();break;
  case 'backdrop':closeModal();break;
