@@ -625,6 +625,7 @@ function doAction(action,button){
   for(const t of TEST_TYPES)assignLineTest(animal.line,t,testDraft.has(t));
   store();testDraft=null;closeModal(false);
   if(page==='linking'||page==='animals')render();
+  if(page==='linking'&&data.phase==='linking'&&waiting().length)startCamera();
   toast('Tests saved for '+animal.line);break;
  }
  case 'test-select':{
