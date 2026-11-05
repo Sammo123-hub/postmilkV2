@@ -99,8 +99,14 @@ const HerdDemo=(()=>{
   if(!query)return toast('Enter a line number first.');
   const exact=HERD.find(a=>a.line===query);
   if(exact)return choose(exact.line);
-  if(HERD.some(a=>a.line.includes(query)))return toast('Select an animal from the matching herd results, or enter its full line number.');
-  choose(query); // mockup 4.2.4: line is not in the herd; add exactly as typed.
+  const matches=find();
+  // UI-12: with one filtered herd match, the keypad ADD means add that
+  // animal rather than treating the partial search text as a new line number.
+  // choose() still checks for existing sampling-list entries and shows the
+  // duplicate warning when appropriate.
+  if(matches.length===1)return choose(matches[0].line);
+  if(matches.length>1)return toast('Select an animal from the matching herd results, or enter its full line number.');
+  choose(query); // mockup 4.2.4: no herd match; add exactly as typed.
  }
  function add(line){
   const a={uid:uid(),line:String(line),yield:'',sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false};
