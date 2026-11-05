@@ -196,9 +196,59 @@ function mockNmrStatus(){
   return {label:'CHANGED SINCE SIMULATED SEND',detail:'The test session has changed since the last local send simulation ('+stamp+'). No data was sent to NMR.'};
  return {label:'SIMULATED SENT · TEST ONLY',detail:'Marked as sent locally at '+stamp+'. This does not confirm delivery to NMR.'};
 }
+function remainingTestHerd(){
+ const occupied=new Set(animals().map(a=>a.line));
+ return HerdDemo.HERD.filter(a=>!occupied.has(a.line));
+}
+function readTestCount(id,maximum){
+ const input=document.getElementById(id);
+ const amount=Number(input?.value);
+ return Number.isSafeInteger(amount)&&amount>0&&amount<=maximum?amount:null;
+}
+function bulkAddTestAnimals(count){
+ if(!activeRecordId||data.phase==='closed')return false;
+ const available=remainingTestHerd();
+ if(!Number.isSafeInteger(count)||count<1||count>available.length)return false;
+ for(const a of available.slice(0,count)){
+  data.animals.push({uid:uid(),line:a.line,yield:'',sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false,tests:[]});
+ }
+ if(data.phase==='setup')data.phase='adding';
+ // If the user adds animals after confirming a session, its sample linking
+ // needs review before the session can be completed again.
+ if(data.phase==='confirmed'){data.phase='linking';data.boxesConfirmed=false;}
+ store();
+ return true;
+}
+function bulkGenerateSampleLinks(count){
+ if(!activeRecordId||data.phase==='closed')return false;
+ const available=waiting();
+ if(!Number.isSafeInteger(count)||count<1||count>available.length)return false;
+ const used=new Set(animals().map(a=>a.sample).filter(Boolean));
+ let candidate=900000001;
+ let sequence=Math.max(0,...linked().map(a=>Number(a.linkedSequence)||0));
+ const selected=available.slice(0,count);
+ // Allocate all IDs before mutating records, so invalid requests never
+ // partially link samples.
+ const ids=[];
+ for(let i=0;i<selected.length;i++){
+  while(used.has(String(candidate))&&candidate<=999999999)candidate++;
+  if(candidate>999999999)return false;
+  ids.push(String(candidate));used.add(String(candidate));candidate++;
+ }
+ const now=timestamp();
+ for(let i=0;i<selected.length;i++){
+  const a=selected[i];
+  a.sample=ids[i];a.linkedSequence=++sequence;a.linkedAt=now;
+  if(!a.yield)a.yield=(11+(Number(ids[i])%170)/10).toFixed(1);
+  a.noSampleReason='';
+ }
+ if(['setup','adding','check','confirmed'].includes(data.phase))data.phase='linking';
+ data.startedAt||=now;data.boxesConfirmed=false;
+ store();return true;
+}
 function dataManagementScreen(){
  if(!activeRecordId)return ['<div class="notice">Select or create a sampling session first.</div>',btn('SAMPLING SESSIONS','goto-sessions','secondary wide')];
- const all=animals(),unlinked=waiting(),available=HerdDemo.HERD.filter(a=>!all.some(b=>b.line===a.line)),status=mockNmrStatus();
+ const all=animals(),unlinked=waiting(),available=remainingTestHerd(),status=mockNmrStatus(),readOnly=data.phase==='closed';
  const tested=linked().filter(a=>animalTests(a).length>0).length;
  const summary='<div class="data-summary-grid">'+
   '<div><strong>'+all.length+'</strong><span>In sampling list</span></div>'+
@@ -221,12 +271,12 @@ function dataManagementScreen(){
   '<p class="hint">Generate local test records. These are not live animal or NMR records.</p>'+
   '<label class="field-label" for="data-add-count">ADD ANIMALS FROM TEST HERD</label>'+
   '<p class="hint">'+available.length+' of '+HerdDemo.HERD.length+' herd animals not yet on this session list. Adds them in line-number order, ready to link with sample pots.</p>'+
-  '<div class="data-hub-controls"><input class="input" id="data-add-count" type="number" min="1" max="'+available.length+'" step="1" inputmode="numeric" value="'+Math.min(5,available.length)+'" '+(available.length?'':'disabled')+' aria-label="Number of herd animals to add">'+
-  btn('ADD ANIMALS','data-add-animals','secondary',available.length?'':'disabled')+'</div>'+
+  '<div class="data-hub-controls"><input class="input" id="data-add-count" type="number" min="1" max="'+available.length+'" step="1" inputmode="numeric" value="'+Math.min(5,available.length)+'" '+(available.length&&!readOnly?'':'disabled')+' aria-label="Number of herd animals to add">'+
+  btn('ADD ANIMALS','data-add-animals','secondary',available.length&&!readOnly?'':'disabled')+'</div>'+
   '<label class="field-label" for="data-link-count">GENERATE LINKED SAMPLE IDS &amp; YIELDS</label>'+
   '<p class="hint">'+unlinked.length+' awaiting animals. Gives the next animals unique nine-digit test Sample IDs and fills in any missing yield. This makes them available for Add Tests.</p>'+
-  '<div class="data-hub-controls"><input class="input" id="data-link-count" type="number" min="1" max="'+unlinked.length+'" step="1" inputmode="numeric" value="'+Math.min(5,unlinked.length)+'" '+(unlinked.length?'':'disabled')+' aria-label="Number of awaiting animals to link">'+
-  btn('GENERATE LINKS & YIELDS','data-auto-link','secondary',unlinked.length?'':'disabled')+'</div></section>';
+  '<div class="data-hub-controls"><input class="input" id="data-link-count" type="number" min="1" max="'+unlinked.length+'" step="1" inputmode="numeric" value="'+Math.min(5,unlinked.length)+'" '+(unlinked.length&&!readOnly?'':'disabled')+' aria-label="Number of awaiting animals to link">'+
+  btn('GENERATE LINKS & YIELDS','data-auto-link','secondary',unlinked.length&&!readOnly?'':'disabled')+'</div></section>';
  return ['<div class="data-hub"><div class="tinycap">ACTIVE SESSION · '+safe(data.session)+'</div>'+
   '<p class="hint">Track data coming into and leaving this device, and prepare realistic test sessions.</p>'+
   summary+out+inbound+files+test+'</div>',btn('BACK TO SESSION','goto-session','outline wide')];
@@ -658,6 +708,18 @@ function doAction(action,button){
  case 'goto-sessions':navigate('sessions');break;
  case 'goto-data':if(!activeRecordId)return toast('Create or select a session first.');navigate('data');break;
  case 'simulate-nmr-send':if(!activeRecordId)return toast('Select a session first.');data.nmrMockSentAt=timestamp();data.nmrMockSentRevision=Number(data.changeRevision)||0;syncActiveSession();persistRegistry();render();toast('Simulated send recorded locally. No data sent to NMR.');break;
+ case 'data-add-animals':{
+  const count=readTestCount('data-add-count',remainingTestHerd().length);
+  if(count===null)return toast('Enter a whole number within the available herd count.');
+  if(!bulkAddTestAnimals(count))return toast('Cannot add those animals to this session.');
+  render();toast('Added '+count+' demo herd animals, ready for pot linking.');break;
+ }
+ case 'data-auto-link':{
+  const count=readTestCount('data-link-count',waiting().length);
+  if(count===null)return toast('Enter a whole number no greater than the awaiting count.');
+  if(!bulkGenerateSampleLinks(count))return toast('Could not generate sample links.');
+  render();toast('Linked '+count+' test samples and added missing yields.');break;
+ }
  case 'goto-tests':if(!activeRecordId)return toast('Create or select a session first');currentTest='JOHNES';testFilter='all';testQuery='';resetTestDraft();navigate('tests');break;
  case 'new-session':openModal('new-session');break;
  case 'create-session':{
