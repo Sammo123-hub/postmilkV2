@@ -45,6 +45,9 @@ const CameraSettings=(()=>{
    '<p class="camera-settings-note">Applies only when Barcode type is Data Matrix only. Fast runs a different decoder on the same camera and falls back automatically if unavailable. First use downloads about 1 MB.</p>'+
    '<p id="camera-fast-status" class="camera-settings-note"></p>'+
    '<div class="camera-settings-status" id="camera-settings-status" role="status" aria-live="polite">Preparing camera…</div>'+
+   '<div class="camera-settings-cleanup"><div class="field-label">TESTING DATA</div>'+
+    '<p class="camera-settings-note">Clear this device’s test sampling session, including linked sample IDs and scanned box numbers. Camera, zoom and barcode settings will be kept.</p>'+
+    '<button type="button" class="btn outline danger wide" data-action="clear-test-data">CLEAR TEST DATA</button></div>'+
    '<div class="buttons"><button type="button" class="btn outline" data-action="camera-reset">DEFAULTS</button><button type="button" class="btn secondary" data-action="camera-settings-done">DONE</button></div>'+
    '</div>';
  }
