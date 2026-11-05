@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.4.0';
+const VERSION='1.4.1';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -55,7 +55,18 @@ function load(){
 function normaliseRecord(raw){
  const result={...fresh(),...raw};
  result.recordId=typeof result.recordId==='string'&&result.recordId?result.recordId:uid();
- result.animals=Array.isArray(result.animals)?result.animals:[];
+ const legacy=result.testAssignments&&typeof result.testAssignments==='object'&&!Array.isArray(result.testAssignments)?result.testAssignments:{};
+ // Tests belong to sampled animals in this session, never to the whole herd.
+ // Carry across any tests recorded by v1.4.0 for linked animals only. Remove
+ // the old line-number-wide assignments so they cannot surface on a cow that
+ // has not had a sample linked.
+ result.animals=(Array.isArray(result.animals)?result.animals:[]).filter(a=>a&&typeof a==='object').map(a=>{
+  const linkedSample=!!a.sample&&!a.removed;
+  const existing=Array.isArray(a.tests)?a.tests:[];
+  const prior=Array.isArray(legacy[a.line])?legacy[a.line]:[];
+  return {...a,tests:linkedSample?[...new Set([...existing,...prior])].filter(t=>['JOHNES','BVD','PAG','NEO'].includes(t)):[]};
+ });
+ result.testAssignments={};
  result.boxes=Array.isArray(result.boxes)?result.boxes:[];
  return result;
 }
@@ -130,19 +141,22 @@ function stage(number,title,state,content='',current=false){return `<section cla
 function detail(k,v){return `<div><span class="tinycap">${safe(k)}</span><div class="detail-value">${safe(v)}</div></div>`;}
 const TEST_TYPES=['JOHNES','BVD','PAG','NEO'];
 let currentTest='JOHNES',testFilter='all',testQuery='',testDraft=null,testManagerDraft=new Set();
-function resetTestDraft(){testManagerDraft=new Set(HerdDemo.HERD.filter(a=>lineTests(a.line).includes(currentTest)).map(a=>a.line));}
-function lineTests(line){
- const persisted=Array.isArray(data.testAssignments?.[line])?data.testAssignments[line]:[];
- const selected=animals().find(a=>a.line===line)?.tests||[];
- return [...new Set([...persisted,...selected])].filter(x=>TEST_TYPES.includes(x));
+function sampledAnimals(){return linked();}
+function animalTests(animal){
+ if(!animal?.sample||animal.removed)return [];
+ return [...new Set(Array.isArray(animal.tests)?animal.tests:[])].filter(t=>TEST_TYPES.includes(t));
 }
-function assignLineTest(line,test,enabled){
- if(!TEST_TYPES.includes(test))return;
- data.testAssignments||={};
- const values=new Set(lineTests(line));
- if(enabled)values.add(test);else values.delete(test);
- data.testAssignments[line]=[...values];
- for(const a of data.animals)if(a.line===line)a.tests=[...values];
+function resetTestDraft(){
+ testManagerDraft=new Set(sampledAnimals().filter(a=>animalTests(a).includes(currentTest)).map(a=>a.uid));
+}
+function assignSampledTest(animalUid,test,enabled){
+ if(!TEST_TYPES.includes(test))return false;
+ const animal=sampledAnimals().find(a=>a.uid===animalUid);
+ if(!animal)return false;
+ const chosen=new Set(animalTests(animal));
+ if(enabled)chosen.add(test);else chosen.delete(test);
+ animal.tests=[...chosen];
+ return true;
 }
 function sessionsScreen(){
  const list=sessions.slice().reverse().map(rec=>{
@@ -160,16 +174,18 @@ function sessionsScreen(){
   '<button type="button" class="btn primary wide" data-action="new-session">+ NEW SESSION</button></div>',''];
 }
 function testManagementScreen(){
- const view=HerdDemo.HERD.filter(a=>(testFilter==='with'?testManagerDraft.has(a.line):testFilter==='without'?!testManagerDraft.has(a.line):true)&&(!testQuery||a.line.includes(testQuery)));
- const rows=view.map(a=>'<label class="test-manager-row"><input type="checkbox" data-test-line="'+safe(a.line)+'" '+(testManagerDraft.has(a.line)?'checked':'')+'><strong>'+safe(a.line)+'</strong></label>').join('');
+ const sampled=sampledAnimals();
+ const view=sampled.filter(a=>(testFilter==='with'?testManagerDraft.has(a.uid):testFilter==='without'?!testManagerDraft.has(a.uid):true)&&(!testQuery||a.line.includes(testQuery)||a.sample.includes(testQuery)));
+ const rows=view.map(a=>'<label class="test-manager-row"><input type="checkbox" data-test-uid="'+safe(a.uid)+'" '+(testManagerDraft.has(a.uid)?'checked':'')+'><span class="test-manager-animal"><strong>'+safe(a.line)+'</strong><span>Sample '+safe(a.sample)+'</span></span></label>').join('');
  const selected=testManagerDraft.size;
- return ['<div class="test-management"><div class="tinycap">TEST MANAGEMENT · '+HerdDemo.HERD.length+' COWS</div>'+
+ return ['<div class="test-management"><div class="tinycap">TEST MANAGEMENT · '+sampled.length+' SAMPLED ANIMALS</div>'+
+  '<p class="hint">Only animals with a linked sample in this session can have tests added.</p>'+
   '<div class="test-tabs">'+TEST_TYPES.map(t=>'<button type="button" data-action="test-select" data-test="'+t+'" class="'+(t===currentTest?'active':'')+'">'+t+'</button>').join('')+'</div>'+
   '<div class="test-filter-row">'+[['with','WITH TEST'],['without','WITHOUT TEST'],['all','ALL']].map(([k,v])=>'<button type="button" data-action="test-filter" data-filter="'+k+'" class="'+(k===testFilter?'active':'')+'">'+v+'</button>').join('')+'</div>'+
-  '<input class="input" id="test-search" type="search" placeholder="Search line no." value="'+safe(testQuery)+'">'+
-  '<button type="button" class="btn outline wide" data-action="test-select-all">SELECT ALL SHOWN</button>'+
-  '<div class="test-management-rows">'+(rows||'<p class="hint">No animals match this filter.</p>')+'</div></div>',
-  '<button type="button" class="btn secondary wide" data-action="test-save">SAVE '+currentTest+' · '+selected+' ANIMALS</button>'];
+  '<input class="input" id="test-search" type="search" placeholder="Search line or sample ID" value="'+safe(testQuery)+'">'+
+  '<button type="button" class="btn outline wide" data-action="test-select-all" '+(view.length?'':'disabled')+'>SELECT ALL SHOWN</button>'+
+  '<div class="test-management-rows">'+(rows||'<p class="hint">'+(sampled.length?'No sampled animals match this filter.':'No sampled animals yet. Link sample pots to animals first.')+'</p>')+'</div></div>',
+  '<button type="button" class="btn secondary wide" data-action="test-save" '+(sampled.length?'':'disabled')+'>SAVE '+currentTest+' · '+selected+' ANIMALS</button>'];
 }
 function sessionScreen(){
  const status=data.phase==='closed'?'Closed':data.phase==='confirmed'?'Completing session':data.phase==='setup'?'Not started':'In progress';
@@ -533,7 +549,7 @@ function openModal(name,which='',options={}){
   '<div class="buttons">'+btn('CANCEL','modal-close','outline')+btn('CREATE SESSION','create-session','secondary')+'</div>';
  if(name==='add-test'&&animal&&animal.sample){
   const position=animals().indexOf(animal)+1;
-  testDraft=new Set(lineTests(animal.line));
+  testDraft=new Set(animalTests(animal));
   html='<div class="test-add-sheet"><div class="tinycap">ADD TEST · LIST POSITION '+position+'</div>'+
    '<h2>'+safe(animal.line)+'</h2><p class="hint">Sample ID '+safe(animal.sample)+'</p><div class="tinycap">SELECT TESTS</div>'+
    '<div class="add-test-options">'+TEST_TYPES.map(t=>'<button type="button" class="add-test-option '+(testDraft.has(t)?'selected':'')+'" data-action="toggle-add-test" data-test="'+t+'"><span class="test-check">'+(testDraft.has(t)?'✓':'')+'</span>'+t+'</button>').join('')+'</div>'+
@@ -614,7 +630,7 @@ function doAction(action,button){
   const mark=button.querySelector('.test-check');if(mark)mark.textContent=testDraft.has(test)?'✓':'';
   const label=$('#save-add-test');if(label){
    const previous=animals().find(a=>a.uid===selectedUid);
-   const added=previous?[...testDraft].filter(t=>!lineTests(previous.line).includes(t)).length:0;
+   const added=previous?[...testDraft].filter(t=>!animalTests(previous).includes(t)).length:0;
    label.textContent=added?'ADD '+added+' TEST'+(added===1?'':'S'):'DONE';
   }
   break;
@@ -622,7 +638,7 @@ function doAction(action,button){
  case 'save-add-test':{
   const animal=animals().find(a=>a.uid===selectedUid);
   if(!animal?.sample||!testDraft)return toast('Sample link is not available.');
-  for(const t of TEST_TYPES)assignLineTest(animal.line,t,testDraft.has(t));
+  for(const t of TEST_TYPES)assignSampledTest(animal.uid,t,testDraft.has(t));
   store();testDraft=null;closeModal(false);
   if(page==='linking'||page==='animals')render();
   if(page==='linking'&&data.phase==='linking'&&waiting().length)startCamera();
@@ -634,11 +650,13 @@ function doAction(action,button){
  }
  case 'test-filter':if(['all','with','without'].includes(button.dataset.filter)){testFilter=button.dataset.filter;render();}break;
  case 'test-select-all':{
-  const shown=HerdDemo.HERD.filter(a=>(testFilter==='with'?testManagerDraft.has(a.line):testFilter==='without'?!testManagerDraft.has(a.line):true)&&(!testQuery||a.line.includes(testQuery)));
-  for(const a of shown)testManagerDraft.add(a.line);
+  const shown=sampledAnimals().filter(a=>(testFilter==='with'?testManagerDraft.has(a.uid):testFilter==='without'?!testManagerDraft.has(a.uid):true)&&(!testQuery||a.line.includes(testQuery)||a.sample.includes(testQuery)));
+  for(const a of shown)testManagerDraft.add(a.uid);
   render();break;
  }
- case 'test-save':for(const a of HerdDemo.HERD)assignLineTest(a.line,currentTest,testManagerDraft.has(a.line));store();testFilter='with';render();toast(currentTest+' tests saved.');break;
+ case 'test-save':
+  for(const a of sampledAnimals())assignSampledTest(a.uid,currentTest,testManagerDraft.has(a.uid));
+  store();testFilter='with';render();toast(currentTest+' tests saved.');break;
  
  case 'modal-close':closeModal();break;
  case 'backdrop':closeModal();break;
@@ -714,11 +732,11 @@ function doAction(action,button){
  case 'save-manual':{const v=$('#manual-id')?.value||'';const ok=page==='boxes'?boxScan(v):linkSample(v);if(ok){closeModal(false);if(page==='linking'&&waiting().length||page==='boxes')startCamera();}break;}
  case 'animal':{const a=animals().find(x=>x.uid===button.dataset.uid);if(!a)return;selectedUid=a.uid;openModal(data.phase==='linking'&&!a.sample&&!a.noSampleReason&&(page==='linking'||page==='animals')?'capture':'animal',a.uid);break;}
  case 'save-animal-details':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;const line=$('#animal-line').value.trim(),yieldKg=$('#animal-yield').value.trim();if(!/^[-\w]{1,25}$/.test(line)||animals().some(b=>b!==a&&b.line===line))return toast('Invalid or duplicate animal line');if(yieldKg!==''&&(!Number.isFinite(+yieldKg)||+yieldKg<0))return toast('Invalid yield');a.line=line;a.yield=yieldKg;store();closeModal(false);render();if(page==='linking'&&data.phase==='linking'&&waiting().length)startCamera();break;}
- case 'unlink-animal':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.sample='';a.linkedSequence=0;a.linkedAt='';if(data.phase==='confirmed'){data.phase='linking';data.boxesConfirmed=false}store();closeModal(false);render();if(page==='linking')startCamera();break;}
+ case 'unlink-animal':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.sample='';a.linkedSequence=0;a.linkedAt='';a.tests=[];if(data.phase==='confirmed'){data.phase='linking';data.boxesConfirmed=false}store();closeModal(false);render();if(page==='linking')startCamera();break;}
  case 'no-sample':openModal('no-sample',selectedUid);break;
- case 'save-no-sample':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.noSampleReason=$('#no-sample-reason').value;a.sample='';a.linkedSequence=0;store();closeModal(false);render();if(page==='linking'&&waiting().length)startCamera();break;}
+ case 'save-no-sample':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.noSampleReason=$('#no-sample-reason').value;a.sample='';a.linkedSequence=0;a.tests=[];store();closeModal(false);render();if(page==='linking'&&waiting().length)startCamera();break;}
  case 'undo-no-sample':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.noSampleReason='';store();closeModal(false);render();if(page==='linking')startCamera();break;}
- case 'remove-animal':{const a=animals().find(a=>a.uid===selectedUid);if(!a||!confirm('Remove '+a.line+' from this session?'))return;a.removed=true;store();closeModal(false);render();if(page==='linking'&&waiting().length)startCamera();break;}
+ case 'remove-animal':{const a=animals().find(a=>a.uid===selectedUid);if(!a||!confirm('Remove '+a.line+' from this session?'))return;a.removed=true;a.tests=[];store();closeModal(false);render();if(page==='linking'&&waiting().length)startCamera();break;}
  case 'confirm-linking':openModal('confirm-linking');break;
  case 'do-confirm-linking':if(!canFinish())return toast('Deal with awaiting or duplicate animals first');data.phase='confirmed';data.confirmedAt=timestamp();store();navigate('session');break;
  case 'reopen-linking':data.phase='linking';data.boxesConfirmed=false;store();navigate('linking',{autoCamera:true});break;
@@ -746,9 +764,11 @@ document.addEventListener('input',e=>{
  if(!t)el.dataset.complete='0';
 });
 document.addEventListener('change',e=>{
- if(e.target.matches?.('[data-test-line]')&&page==='tests'){
-  if(e.target.checked)testManagerDraft.add(e.target.dataset.testLine);
-  else testManagerDraft.delete(e.target.dataset.testLine);
+ if(e.target.matches?.('[data-test-uid]')&&page==='tests'){
+  const sampleUid=e.target.dataset.testUid;
+  if(!sampledAnimals().some(a=>a.uid===sampleUid))return;
+  if(e.target.checked)testManagerDraft.add(sampleUid);
+  else testManagerDraft.delete(sampleUid);
   const save=$('[data-action="test-save"]');
   if(save)save.textContent='SAVE '+currentTest+' · '+testManagerDraft.size+' ANIMALS';
   return;
