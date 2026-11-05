@@ -191,7 +191,7 @@
 .box-scan-overlay span{font:400 13px "DM Sans",Arial,sans-serif;color:#607d8b}
 .box-scan-frame.is-live .box-scan-overlay{background:transparent;align-items:flex-start;justify-content:space-between;padding:10px}
 .box-scan-frame.is-live .box-scan-overlay strong{font-size:18px;letter-spacing:.06em;color:#fff;background:#0d1b2ac9;border-radius:5px;padding:6px 8px;text-shadow:0 1px 2px #0008}
-.box-scan-frame.is-live .box-scan-overlay span{display:none}
+.box-scan-frame.is-live .box-scan-overlay .box-camera-indicator{display:flex}
 .box-scan-frame .camera-retry{top:50%;max-width:83%;min-width:150px;font-size:14px}
 .box-scan-frame .scan-affirm{font-size:13px;z-index:4}
 .box-scan-screen .scan-status{margin:0;min-height:0;padding:8px 9px}
