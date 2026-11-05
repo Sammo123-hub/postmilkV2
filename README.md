@@ -121,8 +121,16 @@ Sample Boxes uses the narrower full-image scanner preview with **SCAN NEXT BOX**
 
 - **Inbound** displays the locally seeded 70-animal demo herd (not a live NMR download) and offers **Import Session JSON**. The import adds a new session to the session list, retaining existing sessions.
 - **Outbound → Files** offers **Export Current Session JSON**. JSON import/export now live here; the former standalone menu JSON items have been removed.
-- **Outbound → NMR** explicitly shows **Not sent** by default. **Simulate Send to NMR** records a timestamp and a **SIMULATED SENT · TEST ONLY** state in browser storage, without making any NMR network request. Any subsequent saved session change marks the simulated delivery **CHANGED SINCE SIMULATED SEND**. This is **not proof of transmission or acceptance** by NMR; there is no NMR API connection in the prototype.
+- **Outbound → NMR** displays **Data compiled**, **Data sent (simulated)**, and the **JSON filename** associated with the most recent compilation. Exporting the selected session JSON records a local, immutable JSON snapshot and matching compilation/simulated-send timestamps. The historical JSON file can be downloaded again from this status area. Subsequent changes to the session show **CHANGED SINCE COMPILATION** while retaining the previous snapshot. **No actual transmission or acceptance by NMR occurs**, and there is no simulate-send button.
 - **Test Data Tools → Add animals from test herd** accepts a requested count, chooses the next available demo-herd animals in ascending line-number order and adds them to this session's sampling list, unlinked and ready for pot scanning. It cannot create duplicates or exceed the available herd.
 - **Test Data Tools → Generate linked Sample IDs & yields** accepts a requested count of awaiting animals and assigns unique, nine-digit numeric test Sample IDs to them, with a synthetic yield only when a yield is missing. Existing linked animals, sample IDs, assigned tests and entered yields are preserved. Newly linked animals are immediately available in **Add Tests**. Bulk test-data controls are disabled for closed sessions.
 
 The 70-animal catalogue, pot camera, barcode formats, Data Matrix decoder, and camera preferences are unchanged. All data and simulated delivery statuses are local to the device. There is no automated actual NMR delivery.
+
+## Test Management follow-up (v1.5.3)
+
+- On the Test Management screen, each sampled animal row shows its **bold line number** beside the **lighter-weight Sample ID** at the **same size**, with existing assigned tests in smaller type below.
+- **SAVE** records assignments for the current test; **DONE** also saves the current test selection and returns to Session Management. DONE does not complete or lock the Add Tests step.
+- From the moment an animal's sample pot is linked, tests can be added, changed, or removed; in this prototype, the test screen remains accessible after session closure because no laboratory-receipt event has been implemented.
+- Add Tests remains independent of the Sample Boxes unlock logic. Sample Boxes still follows Steps 1–3 (where required), not test selection. Session Management's separate **Sync & Consolidation** step is unchanged.
+- Closed sessions no longer include a separate **Export Session** button; JSON export is in Data Management.
