@@ -158,6 +158,17 @@ function assignSampledTest(animalUid,test,enabled){
  animal.tests=[...chosen];
  return true;
 }
+function commitTestSelection(){
+ let changed=false;
+ for(const animal of sampledAnimals()){
+  const selected=testManagerDraft.has(animal.uid);
+  if(animalTests(animal).includes(currentTest)===selected)continue;
+  assignSampledTest(animal.uid,currentTest,selected);
+  changed=true;
+ }
+ if(changed)store();
+ return changed;
+}
 function sessionsScreen(){
  const list=sessions.slice().reverse().map(rec=>{
   const added=(rec.animals||[]).filter(a=>!a.removed);
@@ -818,13 +829,11 @@ function doAction(action,button){
   render();break;
  }
  case 'test-save':
-  for(const a of sampledAnimals())assignSampledTest(a.uid,currentTest,testManagerDraft.has(a.uid));
-  store();testFilter='all';render();toast(currentTest+' tests saved. Samples remain available for other tests.');break;
+  commitTestSelection();testFilter='all';render();toast(currentTest+' tests saved. Samples remain available for other tests.');break;
  case 'test-done':
-  // Save current tab's pending choices before leaving, but do not mark test
-  // selection finished or change the Sample Boxes locking rules.
-  for(const a of sampledAnimals())assignSampledTest(a.uid,currentTest,testManagerDraft.has(a.uid));
-  store();navigate('session');break;
+  // Save pending choices (if changed) and return; no test completion flag.
+  // A no-op DONE must not mark the compiled outbound JSON as stale.
+  commitTestSelection();navigate('session');break;
  
  case 'modal-close':closeModal();break;
  case 'backdrop':closeModal();break;
