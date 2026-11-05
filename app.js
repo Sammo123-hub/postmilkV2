@@ -581,10 +581,63 @@ function addDemo(){if(animals().length){toast('Demo animals can be loaded only i
 function makeAnimal(){const line=$('#new-line')?.value.trim()||'',yieldKg=$('#new-yield')?.value.trim()||'';if(!line||!/^[-\w]{1,25}$/.test(line))return toast('Enter a valid animal line number');if(animals().some(a=>a.line===line))return toast('Animal already in this list');if(yieldKg!==''&&(!Number.isFinite(+yieldKg)||+yieldKg<0))return toast('Invalid milk yield');
  data.animals.push({uid:uid(),line,yield:yieldKg,sample:'',linkedSequence:0,linkedAt:'',noSampleReason:'',removed:false});if(data.phase==='setup')data.phase='adding';store();closeModal(false);render();openModal('add-animal');toast(`${line} added`);}
 function exportJSON(){const blob=new Blob([JSON.stringify({app:'Post-milking Sampling',version:VERSION,exportedAt:timestamp(),...data},null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`postmilk-${data.session.replace(/[^a-z0-9-]/gi,'_')}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);closeModal(false);}
-async function importJSON(file){if(!file)return;try{const text=await file.text(),parsed=JSON.parse(text);if(!Array.isArray(parsed.animals)||!parsed.session)throw Error('Not a sampling session export');if(!confirm('Import this session? It will replace the data currently saved on this device.'))return;localStorage.setItem(STORAGE,JSON.stringify(parsed));data=load();await navigate('session');toast('Session imported');}catch(e){toast('Unable to import: '+e.message)}}
+async function importJSON(file){if(!file)return;try{const text=await file.text(),parsed=JSON.parse(text);if(!Array.isArray(parsed.animals)||!parsed.session)throw Error('Not a sampling session export');if(!confirm('Import this session? It will add this session without deleting existing sessions.'))return;data=normaliseRecord(parsed);if(sessions.some(x=>x.session===data.session))data.session+='-IMPORTED';activeRecordId=data.recordId;while(sessions.some(x=>x.recordId===activeRecordId)){data.recordId=uid();activeRecordId=data.recordId;}sessions.push(data);store();await navigate('session');toast('Session imported');}catch(e){toast('Unable to import: '+e.message)}}
 function doAction(action,button){
  switch(action){
  case 'menu':openModal('menu');break;
+ case 'goto-sessions':navigate('sessions');break;
+ case 'goto-tests':if(!activeRecordId)return toast('Create or select a session first');currentTest='JOHNES';testFilter='all';testQuery='';navigate('tests');break;
+ case 'new-session':openModal('new-session');break;
+ case 'create-session':{
+  const site=$('#new-session-site')?.value.trim()||'',herd=$('#new-session-herd')?.value.trim()||'';
+  const id=$('#new-session-id')?.value.trim()||'';
+  if(!site||!herd||!id)return toast('Enter a farm, herd and session ID.');
+  if(sessions.some(x=>x.session===id))return toast('That Session ID is already in use.');
+  data=normaliseRecord({...fresh(),site,herd,session:id,org:$('#new-session-org')?.value.trim()||data.org});
+  activeRecordId=data.recordId;sessions.push(data);store();navigate('session');break;
+ }
+ case 'open-session':{
+  const found=sessions.find(x=>x.recordId===button.dataset.recordId);
+  if(!found)return toast('Session not found.');
+  data=found;activeRecordId=data.recordId;persistRegistry();navigate('session');break;
+ }
+ case 'add-test':{
+  const animal=animals().find(x=>x.uid===selectedUid);
+  if(!animal?.sample)return toast('Link a sample before adding tests.');
+  openModal('add-test',animal.uid);break;
+ }
+ case 'toggle-add-test':{
+  const test=button.dataset.test;if(!TEST_TYPES.includes(test)||!testDraft)return;
+  if(testDraft.has(test))testDraft.delete(test);else testDraft.add(test);
+  button.classList.toggle('selected',testDraft.has(test));
+  const mark=button.querySelector('.test-check');if(mark)mark.textContent=testDraft.has(test)?'✓':'';
+  const label=$('#save-add-test');if(label){
+   const previous=animals().find(a=>a.uid===selectedUid);
+   const added=previous?[...testDraft].filter(t=>!lineTests(previous.line).includes(t)).length:0;
+   label.textContent=added?'ADD '+added+' TEST'+(added===1?'':'S'):'DONE';
+  }
+  break;
+ }
+ case 'save-add-test':{
+  const animal=animals().find(a=>a.uid===selectedUid);
+  if(!animal?.sample||!testDraft)return toast('Sample link is not available.');
+  for(const t of TEST_TYPES)assignLineTest(animal.line,t,testDraft.has(t));
+  store();testDraft=null;closeModal(false);
+  if(page==='linking'||page==='animals')render();
+  toast('Tests saved for '+animal.line);break;
+ }
+ case 'test-select':{
+  if(!TEST_TYPES.includes(button.dataset.test))break;
+  currentTest=button.dataset.test;render();break;
+ }
+ case 'test-filter':if(['all','with','without'].includes(button.dataset.filter)){testFilter=button.dataset.filter;render();}break;
+ case 'test-select-all':{
+  const shown=HerdDemo.HERD.filter(a=>(testFilter==='with'?lineTests(a.line).includes(currentTest):testFilter==='without'?!lineTests(a.line).includes(currentTest):true)&&(!testQuery||a.line.includes(testQuery)));
+  for(const a of shown)assignLineTest(a.line,currentTest,true);
+  store();render();break;
+ }
+ case 'test-save':store();testFilter='with';render();toast(currentTest+' tests saved.');break;
+ 
  case 'modal-close':closeModal();break;
  case 'backdrop':closeModal();break;
  case 'camera-settings':openModal('camera-settings');break;
@@ -594,7 +647,7 @@ function doAction(action,button){
   // device's camera, zoom, decoder, or barcode format preferences.
   const warning='Clear all test sampling data on this device? This removes added animals, linked sample IDs, scanned boxes and session progress. Camera and zoom settings will be kept. This cannot be undone.';
   if(!confirm(warning))break;
-  data=fresh();store();navigate('session');toast('Test session cleared. Camera settings preserved.');
+  sessions=[];activeRecordId='';data=normaliseRecord(fresh());persistRegistry();navigate('sessions');toast('All test sessions cleared. Camera settings preserved.');
   break;
  }
  case 'camera-reset':CameraSettings.reset();break;
@@ -671,7 +724,7 @@ function doAction(action,button){
  case 'do-close':data.phase='closed';data.closedAt=timestamp();store();navigate('session');break;
  case 'export':exportJSON();break;
  case 'import':{const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.addEventListener('change',()=>importJSON(inp.files?.[0]),{once:true});inp.click();break;}
- case 'reset':if(!confirm('Clear the saved session on this device? Export it first if needed.'))return;data=fresh();store();navigate('session');break;
+ case 'reset':if(!confirm('Delete the current session? Export it first if needed.'))return;sessions=sessions.filter(x=>x.recordId!==activeRecordId);activeRecordId='';data=normaliseRecord(fresh());persistRegistry();navigate('sessions');break;
  }
 }
 document.addEventListener('click',e=>{const button=e.target.closest('[data-action]');if(!button||button.disabled)return;if(button.dataset.action==='backdrop'&&button!==e.target)return;e.preventDefault();doAction(button.dataset.action,button)});
