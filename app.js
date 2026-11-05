@@ -20,7 +20,7 @@ const uid=()=>globalThis.crypto?.randomUUID?.()||String(Date.now())+Math.random(
 const timeNow=()=>new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 const timestamp=()=>new Date().toISOString();
 const demo=[['00001','2'],['00002','4'],['00003','14.2'],['00004','11.8'],['00005','12.6']];
-function fresh(){return {org:'Brook Farm Partnership',site:'Brook Farm',herd:'123450',session:'S-2410-087',start:'',end:'',yields:true,phase:'setup',animals:[],boxes:[],boxesConfirmed:false,closedAt:'',startedAt:'',confirmedAt:''};}
+function fresh(){return {org:'Brook Farm Partnership',site:'Brook Farm',herd:'123450',session:'S-2410-087',start:'',end:'',yields:true,phase:'setup',animals:[],testAssignments:{},boxes:[],boxesConfirmed:false,closedAt:'',startedAt:'',confirmedAt:''};}
 function load(){
  let stored=null;
  try{
@@ -44,8 +44,9 @@ function load(){
   d.phase=legacyPhases[d.phase]||d.phase;
   if(stored.closed)d.phase='closed';
  }
- d.animals=(Array.isArray(d.animals)?d.animals:[]).map((a,i)=>({uid:a.uid||uid(),line:String(a.line||''),yield:String(a.yield||''),sample:String(a.sample||''),linkedSequence:Number(a.linkedSequence)||0,linkedAt:a.linkedAt||'',noSampleReason:String(a.noSampleReason||''),removed:!!a.removed}));
+ d.animals=(Array.isArray(d.animals)?d.animals:[]).map((a,i)=>({uid:a.uid||uid(),line:String(a.line||''),yield:String(a.yield||''),sample:String(a.sample||''),linkedSequence:Number(a.linkedSequence)||0,linkedAt:a.linkedAt||'',noSampleReason:String(a.noSampleReason||''),removed:!!a.removed,tests:Array.isArray(a.tests)?a.tests.filter(x=>['JOHNES','BVD','PAG','NEO'].includes(x)):[]}));
  d.animals.forEach((a,i)=>{if(a.sample&&!a.linkedSequence)a.linkedSequence=i+1});
+ d.testAssignments=d.testAssignments&&typeof d.testAssignments==='object'&&!Array.isArray(d.testAssignments)?d.testAssignments:{};
  d.boxes=Array.isArray(d.boxes)?d.boxes.filter(b=>b&&b.id).map(b=>({id:String(b.id),time:String(b.time||'')})):[];
  return d;
 }
@@ -124,9 +125,51 @@ function sound(){try{const Audio=window.AudioContext||window.webkitAudioContext;
 const btn=(label,act,cls='',attrs='')=>`<button class="btn ${cls}" type="button" data-action="${act}" ${attrs}>${label}</button>`;
 function normalTime(value){let s=String(value||'').trim();if(!s)return '';if(/^\d{4}$/.test(s))s=s.slice(0,2)+':'+s.slice(2);const match=s.match(/^(\d{1,2}):(\d{2})$/);if(!match)return '';const h=+match[1],m=+match[2];return h<=23&&m<=59?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`:'';}
 function timeInput(id,value){return `<input class="time-input" id="${id}" value="${safe(value)}" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocorrect="off" autocapitalize="off" autocomplete="off" spellcheck="false" aria-label="${id.includes('start')?'Milking start':'Milking end'} time" data-complete="${normalTime(value)?'1':'0'}">`;}
-function header(){let name={session:'Session management',linking:'Milk Sampling',animals:'Animals',boxes:'Scan sample boxes'}[page];return `<div class="top"><div class="top-inner"><div class="top-name">${page==='boxes'?'<button type="button" class="box-back" data-action="goto-session" aria-label="Back to Session management">‹</button>':''}${name}</div><div class="top-actions"><span class="top-save" id="save-state">${pendingSave?'NOT SAVED':'SAVED'}</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button></div></div></div><div class="farm-strip">${safe(data.site)} · ${page==='session'||page==='boxes'?'SESSION '+safe(data.session):'POST-MILKING · HERD '+safe(data.herd)}</div>`;}
+function header(){let name={sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',boxes:'Scan sample boxes',tests:'Test management'}[page];return `<div class="top"><div class="top-inner"><div class="top-name">${page==='boxes'?'<button type="button" class="box-back" data-action="goto-session" aria-label="Back to Session management">‹</button>':(page==='session'||page==='tests')?'<button type="button" class="box-back" data-action="goto-sessions" aria-label="Back to Sampling sessions">‹</button>':''}${name}</div><div class="top-actions"><span class="top-save" id="save-state">${pendingSave?'NOT SAVED':'SAVED'}</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button></div></div></div><div class="farm-strip">${page==='sessions'?'POST-MILKING · SESSION OVERVIEW':safe(data.site)+' · '+(page==='session'||page==='boxes'?'SESSION '+safe(data.session):'HERD '+safe(data.herd))}</div>`;}
 function stage(number,title,state,content='',current=false){return `<section class="stage ${current?'current':state==='Complete'?'complete':''}">${current?'<span class="tinycap">CURRENT · NEXT STEP</span>':''}<div class="stage-row"><span class="stage-num">${state==='Complete'?'✓':number}</span><span class="stage-title">${safe(title)}</span><span class="stage-state ${state==='Complete'?'done':''}">${safe(state)}</span></div>${content}</section>`;}
 function detail(k,v){return `<div><span class="tinycap">${safe(k)}</span><div class="detail-value">${safe(v)}</div></div>`;}
+const TEST_TYPES=['JOHNES','BVD','PAG','NEO'];
+let currentTest='JOHNES',testFilter='all',testQuery='',testDraft=null;
+function lineTests(line){
+ const persisted=Array.isArray(data.testAssignments?.[line])?data.testAssignments[line]:[];
+ const selected=animals().find(a=>a.line===line)?.tests||[];
+ return [...new Set([...persisted,...selected])].filter(x=>TEST_TYPES.includes(x));
+}
+function assignLineTest(line,test,enabled){
+ if(!TEST_TYPES.includes(test))return;
+ data.testAssignments||={};
+ const values=new Set(lineTests(line));
+ if(enabled)values.add(test);else values.delete(test);
+ data.testAssignments[line]=[...values];
+ for(const a of data.animals)if(a.line===line)a.tests=[...values];
+}
+function sessionsScreen(){
+ const list=sessions.slice().reverse().map(rec=>{
+  const added=(rec.animals||[]).filter(a=>!a.removed);
+  const linkedCount=added.filter(a=>!!a.sample).length;
+  return '<button type="button" class="sampling-session-row" data-action="open-session" data-record-id="'+safe(rec.recordId)+'">'+
+   '<div class="sampling-session-main"><strong>'+safe(rec.site||'Farm')+'</strong><span>'+safe(rec.session||'No ID')+'</span></div>'+
+   '<div class="sampling-session-sub"><span>'+safe(rec.herd||'')+' · '+added.length+' animals · '+linkedCount+' linked</span>'+
+   '<span class="session-phase-label '+(rec.phase==='closed'?'is-closed':'')+'">'+safe(sessionPhaseLabel(rec))+'</span></div>'+
+   '</button>';
+ }).join('');
+ return ['<div class="sessions-index"><div class="tinycap">SAMPLING SESSIONS · '+sessions.length+'</div>'+
+  '<p class="hint">Choose a session to continue where you left off, or create a new one.</p>'+
+  (list||'<div class="notice">No sampling sessions yet.</div>')+
+  '<button type="button" class="btn primary wide" data-action="new-session">+ NEW SESSION</button></div>',''];
+}
+function testManagementScreen(){
+ const view=HerdDemo.HERD.filter(a=>(testFilter==='with'?lineTests(a.line).includes(currentTest):testFilter==='without'?!lineTests(a.line).includes(currentTest):true)&&(!testQuery||a.line.includes(testQuery)));
+ const rows=view.map(a=>'<label class="test-manager-row"><input type="checkbox" data-test-line="'+safe(a.line)+'" '+(lineTests(a.line).includes(currentTest)?'checked':'')+'><strong>'+safe(a.line)+'</strong></label>').join('');
+ const selected=HerdDemo.HERD.filter(a=>lineTests(a.line).includes(currentTest)).length;
+ return ['<div class="test-management"><div class="tinycap">TEST MANAGEMENT · '+HerdDemo.HERD.length+' COWS</div>'+
+  '<div class="test-tabs">'+TEST_TYPES.map(t=>'<button type="button" data-action="test-select" data-test="'+t+'" class="'+(t===currentTest?'active':'')+'">'+t+'</button>').join('')+'</div>'+
+  '<div class="test-filter-row">'+[['with','WITH TEST'],['without','WITHOUT TEST'],['all','ALL']].map(([k,v])=>'<button type="button" data-action="test-filter" data-filter="'+k+'" class="'+(k===testFilter?'active':'')+'">'+v+'</button>').join('')+'</div>'+
+  '<input class="input" id="test-search" type="search" placeholder="Search line no." value="'+safe(testQuery)+'">'+
+  '<button type="button" class="btn outline wide" data-action="test-select-all">SELECT ALL SHOWN</button>'+
+  '<div class="test-management-rows">'+(rows||'<p class="hint">No animals match this filter.</p>')+'</div></div>',
+  '<button type="button" class="btn secondary wide" data-action="test-save">SAVE '+currentTest+' · '+selected+' ANIMALS</button>'];
+}
 function sessionScreen(){
  const status=data.phase==='closed'?'Closed':data.phase==='confirmed'?'Completing session':data.phase==='setup'?'Not started':'In progress';
  const valid=normalTime(data.start)&&normalTime(data.end);
@@ -223,7 +266,7 @@ function boxesScreen(){
   '</div>';
  return [html,footer];
 }
-function render(){const [html,foot]=({session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen}[page]||sessionScreen)();$('#app').innerHTML=`<div class="app">${header()}<main class="body" id="main-scroll">${html}</main>${foot?`<footer class="bottom">${foot}</footer>`:''}</div>`;updateDebug();}
+function render(){const [html,foot]=({sessions:sessionsScreen,session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen,tests:testManagementScreen}[page]||sessionsScreen)();$('#app').innerHTML=`<div class="app">${header()}<main class="body" id="main-scroll">${html}</main>${foot?`<footer class="bottom">${foot}</footer>`:''}</div>`;updateDebug();}
 function refreshLinkingAfterScan(){
  // Intentionally never render() or replace #qr-reader during a successful QR read.
  const last=$('#last-linked');if(last)last.innerHTML=latest()?animalCard(latest(),{latest:true}):'<div class="no-last">The last linked animal will appear here in green</div>';
