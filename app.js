@@ -103,7 +103,7 @@ function sessionPhaseLabel(record){
  return ({setup:'Not started',adding:'Adding animals',check:'Check animal order',linking:'Linking samples'})[record.phase]||'In progress';
 }
 function newSessionId(){
- const stamp=new Date().toLocaleDateString('en-CA').replace(/-/g,'');
+ const stamp=new Date().toISOString().slice(0,10).replace(/-/g,'');
  let serial=1,id='';
  do{id='S-'+stamp+'-'+String(serial++).padStart(3,'0');}
  while(sessions.some(x=>x.session===id));
