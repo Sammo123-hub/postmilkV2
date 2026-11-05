@@ -181,16 +181,16 @@
 .box-camera-indicator i{width:8px;height:8px;border-radius:50%;background:#b0bec5}
 .box-camera-indicator.is-live{color:#00876a}
 .box-camera-indicator.is-live i{background:#00c389}
-.box-scan-frame{position:relative;height:clamp(210px,30dvh,270px);min-height:210px;max-height:270px;flex:none;border:2px dashed #87cce8;border-radius:8px;background:#1e242b;overflow:hidden;isolation:isolate}
+.box-scan-frame{position:relative;height:clamp(185px,25dvh,230px);min-height:185px;max-height:230px;flex:none;border:2px dashed #87cce8;border-radius:8px;background:#1e242b;overflow:hidden;isolation:isolate}
 .box-scan-video{position:absolute;inset:0;width:100%;height:100%;z-index:1;overflow:hidden}
 .box-scan-video>div{position:relative;max-width:100%!important;width:100%!important;height:100%!important;overflow:hidden}
 .box-scan-video video{position:absolute!important;inset:0!important;display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important;max-width:100%!important}
 .box-scan-frame .camera-placeholder{z-index:0;color:#607d8b}
-.box-scan-overlay{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;pointer-events:none;text-align:center;background:#f3f9fd}
-.box-scan-overlay strong{font:700 24px "Barlow Condensed",Arial,sans-serif;letter-spacing:.08em;color:#2a7aaa}
+.box-scan-overlay{position:absolute;inset:0;z-index:2;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;pointer-events:none;text-align:left;padding:10px;background:transparent}
+.box-scan-overlay strong{font:700 18px "Barlow Condensed",Arial,sans-serif;letter-spacing:.06em;color:#fff;background:#0d1b2ac9;padding:6px 8px;border-radius:5px;text-shadow:0 1px 2px #0008}
 .box-scan-overlay span{font:400 13px "DM Sans",Arial,sans-serif;color:#607d8b}
-.box-scan-frame.is-live .box-scan-overlay{background:transparent;align-items:flex-start;justify-content:flex-end;padding:5px 10px}
-.box-scan-frame.is-live .box-scan-overlay strong{font-size:13px;letter-spacing:.07em;color:#fff;background:#0d1b2a99;border-radius:3px;padding:3px 6px;text-shadow:0 1px 2px #0008}
+.box-scan-frame.is-live .box-scan-overlay{background:transparent;align-items:flex-start;justify-content:space-between;padding:10px}
+.box-scan-frame.is-live .box-scan-overlay strong{font-size:18px;letter-spacing:.06em;color:#fff;background:#0d1b2ac9;border-radius:5px;padding:6px 8px;text-shadow:0 1px 2px #0008}
 .box-scan-frame.is-live .box-scan-overlay span{display:none}
 .box-scan-frame .camera-retry{top:50%;max-width:83%;min-width:150px;font-size:14px}
 .box-scan-frame .scan-affirm{font-size:13px;z-index:4}
@@ -218,3 +218,12 @@
 .box-scan-footer .box-done{height:62px;min-height:62px;width:100%;font-size:19px}
 .box-scan-footer .box-done:disabled{opacity:1;color:#b0bec5;background:#eceff1;border-color:#eceff1}
 @media(max-width:380px){.box-scan-intro>span:first-child{font-size:12.5px}.box-scan-row strong{font-size:16px}.box-scan-row span{font-size:12px}}
+
+/* Sample Boxes camera status sits inside the video, matching the pot reader. */
+.box-scan-overlay .box-camera-indicator{align-self:flex-start;display:flex;align-items:center;gap:5px;background:#0d1b2ac9;color:#fff;padding:8px 10px;border-radius:18px;font:700 12px "Barlow Condensed",Arial,sans-serif;letter-spacing:.08em}
+.box-scan-overlay .box-camera-indicator i{background:#aab8c4}
+.box-scan-overlay .box-camera-indicator.is-live i{background:#00c389}
+.box-scan-overlay .box-camera-indicator.is-live{color:#fff}
+.camera-settings-cleanup{border-top:1px solid #dce5ea;margin-top:14px;padding-top:13px}
+.camera-settings-cleanup .btn{border-color:#cf6b79;color:#9b2036}
+@media(max-width:360px){.box-scan-overlay strong,.box-scan-frame.is-live .box-scan-overlay strong{font-size:16px}.box-scan-overlay .box-camera-indicator{padding:8px 7px}}
