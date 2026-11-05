@@ -129,7 +129,8 @@ function header(){let name={sessions:'Sampling sessions',session:'Session manage
 function stage(number,title,state,content='',current=false){return `<section class="stage ${current?'current':state==='Complete'?'complete':''}">${current?'<span class="tinycap">CURRENT · NEXT STEP</span>':''}<div class="stage-row"><span class="stage-num">${state==='Complete'?'✓':number}</span><span class="stage-title">${safe(title)}</span><span class="stage-state ${state==='Complete'?'done':''}">${safe(state)}</span></div>${content}</section>`;}
 function detail(k,v){return `<div><span class="tinycap">${safe(k)}</span><div class="detail-value">${safe(v)}</div></div>`;}
 const TEST_TYPES=['JOHNES','BVD','PAG','NEO'];
-let currentTest='JOHNES',testFilter='all',testQuery='',testDraft=null;
+let currentTest='JOHNES',testFilter='all',testQuery='',testDraft=null,testManagerDraft=new Set();
+function resetTestDraft(){testManagerDraft=new Set(HerdDemo.HERD.filter(a=>lineTests(a.line).includes(currentTest)).map(a=>a.line));}
 function lineTests(line){
  const persisted=Array.isArray(data.testAssignments?.[line])?data.testAssignments[line]:[];
  const selected=animals().find(a=>a.line===line)?.tests||[];
@@ -159,9 +160,9 @@ function sessionsScreen(){
   '<button type="button" class="btn primary wide" data-action="new-session">+ NEW SESSION</button></div>',''];
 }
 function testManagementScreen(){
- const view=HerdDemo.HERD.filter(a=>(testFilter==='with'?lineTests(a.line).includes(currentTest):testFilter==='without'?!lineTests(a.line).includes(currentTest):true)&&(!testQuery||a.line.includes(testQuery)));
- const rows=view.map(a=>'<label class="test-manager-row"><input type="checkbox" data-test-line="'+safe(a.line)+'" '+(lineTests(a.line).includes(currentTest)?'checked':'')+'><strong>'+safe(a.line)+'</strong></label>').join('');
- const selected=HerdDemo.HERD.filter(a=>lineTests(a.line).includes(currentTest)).length;
+ const view=HerdDemo.HERD.filter(a=>(testFilter==='with'?testManagerDraft.has(a.line):testFilter==='without'?!testManagerDraft.has(a.line):true)&&(!testQuery||a.line.includes(testQuery)));
+ const rows=view.map(a=>'<label class="test-manager-row"><input type="checkbox" data-test-line="'+safe(a.line)+'" '+(testManagerDraft.has(a.line)?'checked':'')+'><strong>'+safe(a.line)+'</strong></label>').join('');
+ const selected=testManagerDraft.size;
  return ['<div class="test-management"><div class="tinycap">TEST MANAGEMENT · '+HerdDemo.HERD.length+' COWS</div>'+
   '<div class="test-tabs">'+TEST_TYPES.map(t=>'<button type="button" data-action="test-select" data-test="'+t+'" class="'+(t===currentTest?'active':'')+'">'+t+'</button>').join('')+'</div>'+
   '<div class="test-filter-row">'+[['with','WITH TEST'],['without','WITHOUT TEST'],['all','ALL']].map(([k,v])=>'<button type="button" data-action="test-filter" data-filter="'+k+'" class="'+(k===testFilter?'active':'')+'">'+v+'</button>').join('')+'</div>'+
@@ -586,7 +587,7 @@ function doAction(action,button){
  switch(action){
  case 'menu':openModal('menu');break;
  case 'goto-sessions':navigate('sessions');break;
- case 'goto-tests':if(!activeRecordId)return toast('Create or select a session first');currentTest='JOHNES';testFilter='all';testQuery='';navigate('tests');break;
+ case 'goto-tests':if(!activeRecordId)return toast('Create or select a session first');currentTest='JOHNES';testFilter='all';testQuery='';resetTestDraft();navigate('tests');break;
  case 'new-session':openModal('new-session');break;
  case 'create-session':{
   const site=$('#new-session-site')?.value.trim()||'',herd=$('#new-session-herd')?.value.trim()||'';
@@ -628,15 +629,15 @@ function doAction(action,button){
  }
  case 'test-select':{
   if(!TEST_TYPES.includes(button.dataset.test))break;
-  currentTest=button.dataset.test;render();break;
+  currentTest=button.dataset.test;resetTestDraft();render();break;
  }
  case 'test-filter':if(['all','with','without'].includes(button.dataset.filter)){testFilter=button.dataset.filter;render();}break;
  case 'test-select-all':{
-  const shown=HerdDemo.HERD.filter(a=>(testFilter==='with'?lineTests(a.line).includes(currentTest):testFilter==='without'?!lineTests(a.line).includes(currentTest):true)&&(!testQuery||a.line.includes(testQuery)));
-  for(const a of shown)assignLineTest(a.line,currentTest,true);
-  store();render();break;
+  const shown=HerdDemo.HERD.filter(a=>(testFilter==='with'?testManagerDraft.has(a.line):testFilter==='without'?!testManagerDraft.has(a.line):true)&&(!testQuery||a.line.includes(testQuery)));
+  for(const a of shown)testManagerDraft.add(a.line);
+  render();break;
  }
- case 'test-save':store();testFilter='with';render();toast(currentTest+' tests saved.');break;
+ case 'test-save':for(const a of HerdDemo.HERD)assignLineTest(a.line,currentTest,testManagerDraft.has(a.line));store();testFilter='with';render();toast(currentTest+' tests saved.');break;
  
  case 'modal-close':closeModal();break;
  case 'backdrop':closeModal();break;
@@ -731,6 +732,7 @@ document.addEventListener('click',e=>{const button=e.target.closest('[data-actio
 document.addEventListener('input',e=>{
  const el=e.target;
  if(el.id==='camera-zoom'){CameraSettings.setZoom(el.value);return;}
+ if(el.id==='test-search'&&page==='tests'){testQuery=el.value;const p=$('#main-scroll');const top=p?.scrollTop||0;render();const next=$('#test-search');if(next){next.focus();next.setSelectionRange?.(testQuery.length,testQuery.length);}if(p)p.scrollTop=top;return;}
  if(!['milking-start','milking-end','edit-start','edit-end'].includes(el.id))return;
  const t=normalTime(el.value);if(/^\d{4}$/.test(el.value)&&t)el.value=t;
  if(el.id==='milking-start'||el.id==='milking-end'){
@@ -743,6 +745,13 @@ document.addEventListener('input',e=>{
  if(!t)el.dataset.complete='0';
 });
 document.addEventListener('change',e=>{
+ if(e.target.matches?.('[data-test-line]')&&page==='tests'){
+  if(e.target.checked)testManagerDraft.add(e.target.dataset.testLine);
+  else testManagerDraft.delete(e.target.dataset.testLine);
+  const save=$('[data-action="test-save"]');
+  if(save)save.textContent='SAVE '+currentTest+' · '+testManagerDraft.size+' ANIMALS';
+  return;
+ }
  if(e.target.id==='camera-device'){CameraSettings.chooseCamera(e.target.value);return;}
  if(e.target.id==='camera-code-format'){CameraSettings.chooseFormat(e.target.value);return;}
  if(e.target.id==='camera-decoder-engine'){CameraSettings.chooseEngine(e.target.value);return;}
