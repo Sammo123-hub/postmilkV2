@@ -104,3 +104,13 @@ Before this version, previously linked sample IDs were stored under browser `loc
 On the **first load of v1.3.3 on each browser/device profile**, the app removes that old **test session** (animal entries, sample links, boxes, and test session timing) and writes the one-time marker `postmilk-demo-clean-70-v1`. Subsequent launches preserve newly entered session data. The user’s stored camera, zoom, barcode-format, and decoder preferences in `postmilk-camera-preferences-v1` are not modified.
 
 The five convenience demo animals are now selected from the 70-animal herd. The catalogue remains independent from the sampling session. Manually entered line numbers outside the catalogue remain supported as an explicit exception, as before.
+
+## Multiple sampling sessions and test management (v1.4.0)
+
+**Sampling Sessions** is now the initial screen. It shows locally saved sessions, farm, herd, session ID, number of animals, linked-sample count and current stage. Tap a session to open its existing Session Management workflow, or choose **+ New Session** to create a separate record. Session IDs must be unique on the device. The prior single-session `postmilk-clean-1.0` record migrates into the new `postmilk-sessions-v1` registry the first time multi-session functionality is used; `postmilk-active-session-v1` remembers the chosen record. Each session retains its own animal order, sample links, boxes, and tests. Data remains **on this device**, with no backend synchronisation.
+
+**Clear Test Data** under Camera Settings now clears all locally saved test sampling sessions, including their animals, sample links, box scans, and test assignments. It requires confirmation and deliberately leaves camera, lens, zoom, decoder and barcode preferences untouched. The former Menu **Reset Demo Session** deletes only the selected session.
+
+**Add Test** implements the selection in the section 4.7 mockups: tap a linked animal and choose **+ Add Test**, then select any of Johnes, BVD, PAG, Neo and tap ADD/DONE. Existing Sample ID and yield are unchanged. Menu → **Test management** provides the 70-animal test herd, tests, filters (With Test, Without Test, All), search, Select All Shown and Save; these assignments are stored within the active sampling session. These are test-recording UI functions only. **Eligibility validation and pre-ordered locked test states are not implemented**, because the mockups mark them future work and do not specify business rules.
+
+Sample Boxes uses the narrower full-image scanner preview with **SCAN NEXT BOX** and **CAMERA ON/OFF** overlaid, plus broad 1D/2D barcode recognition and manual box-number entry. The milk-pot fast Data Matrix decoder is independent and unchanged.
