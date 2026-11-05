@@ -257,3 +257,7 @@
 .add-test-option.selected{background:#eef6fc;border-color:#2a7aaa}
 .test-check{width:25px;height:25px;flex:none;border:2px solid #607d8b;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#2a7aaa;font-size:22px}
 .add-test-option.selected .test-check{border-color:#2a7aaa}
+
+/* Test Management rows are linked samples, not the herd catalogue. */
+.test-manager-animal{display:flex;flex-direction:column;gap:3px;min-width:0}
+.test-manager-animal>span{color:#607d8b;font:500 12px "DM Sans",Arial,sans-serif;overflow-wrap:anywhere}
