@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.3.6';
+const VERSION='1.3.7';
 const STORAGE='postmilk-clean-1.0';
 // One-time migration for the 70-animal TEST herd release. An old sampling
 // session includes previously linked IDs in localStorage, so clear that
@@ -136,7 +136,7 @@ function boxCameraMarkup(){
  return '<div class="box-scan-frame" id="camera-panel">'+
   '<div class="box-scan-video" id="qr-reader"></div>'+
   '<div class="camera-placeholder" id="camera-placeholder">Starting camera…</div>'+
-  '<div class="box-scan-overlay"><strong>SCAN BOX BARCODE</strong><span>Each box is recorded against this session</span></div>'+
+  '<div class="box-scan-overlay"><strong>SCAN NEXT BOX</strong><span class="box-camera-indicator" id="box-camera-indicator"><i aria-hidden="true"></i><span id="camera-badge">CAMERA OFF</span></span></div>'+
   '<div class="scan-affirm" id="scan-affirm" hidden>✓ BOX RECORDED</div>'+
   '<button type="button" class="btn secondary camera-retry" id="camera-retry" data-action="retry-camera" hidden>RETRY CAMERA</button>'+
   '</div>';
@@ -145,8 +145,7 @@ function boxesScreen(){
  const closed=data.phase==='closed',count=data.boxes.length;
  const canConfirm=count>0&&!closed,canDone=closed||(count>0&&data.boxesConfirmed);
  const html='<div class="box-scan-screen">'+
-  '<div class="box-scan-intro"><span>Scan the barcode on each box used.</span>'+
-   '<span class="box-camera-indicator" id="box-camera-indicator"><i aria-hidden="true"></i><span id="camera-badge">'+(closed?'CAMERA OFF':'STARTING')+'</span></span></div>'+
+  ''+
   (closed?'<div class="box-scan-closed">This session is closed. Scanned boxes are shown below.</div>':boxCameraMarkup())+
   '<div class="scan-status" id="scan-status" role="status" hidden></div>'+
   (closed?'':'<button type="button" class="box-manual-button" data-action="manual-sample">+ ADD BOX NUMBER MANUALLY</button>')+
@@ -472,6 +471,14 @@ function doAction(action,button){
  case 'backdrop':closeModal();break;
  case 'camera-settings':openModal('camera-settings');break;
  case 'camera-settings-done':closeModal();break;
+ case 'clear-test-data':{
+  // This resets only the current test sampling session. Do not delete the
+  // device's camera, zoom, decoder, or barcode format preferences.
+  const warning='Clear all test sampling data on this device? This removes added animals, linked sample IDs, scanned boxes and session progress. Camera and zoom settings will be kept. This cannot be undone.';
+  if(!confirm(warning))break;
+  data=fresh();store();navigate('session');toast('Test session cleared. Camera settings preserved.');
+  break;
+ }
  case 'camera-reset':CameraSettings.reset();break;
  case 'camera-zoom-preset':CameraSettings.setZoom(button.dataset.zoom);break;
  case 'edit-session':openModal('edit-session');break;
