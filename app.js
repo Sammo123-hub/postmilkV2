@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.5.1';
+const VERSION='1.5.2';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -189,12 +189,26 @@ function testManagementScreen(){
 }
 // Data Management is a local-only testing hub. A simulated NMR delivery is
 // explicitly distinct from actual network transmission (not implemented).
+function outboundSnapshot(){
+ const rec=data.nmrOutbound;
+ return rec&&typeof rec==='object'&&typeof rec.json==='string'&&!!rec.compiledAt?rec:null;
+}
+function formatExportTime(value){
+ if(!value)return '—';
+ const time=new Date(value);
+ return Number.isNaN(time.getTime())?'—':time.toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'});
+}
 function mockNmrStatus(){
- if(!data.nmrMockSentAt)return {label:'NOT SENT',detail:'No data has been sent to NMR from this prototype.'};
- const stamp=new Date(data.nmrMockSentAt).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'});
- if(data.nmrMockSentRevision!==data.changeRevision)
-  return {label:'CHANGED SINCE SIMULATED SEND',detail:'The test session has changed since the last local send simulation ('+stamp+'). No data was sent to NMR.'};
- return {label:'SIMULATED SENT · TEST ONLY',detail:'Marked as sent locally at '+stamp+'. This does not confirm delivery to NMR.'};
+ const rec=outboundSnapshot();
+ if(!rec)return {label:'NOT COMPILED',compiled:'—',sent:'—',file:'—',
+  detail:'No compiled JSON has been recorded for this session. Nothing has been transmitted to NMR.',stale:false};
+ const stale=rec.revision!==data.changeRevision;
+ return {label:stale?'CHANGED SINCE COMPILATION':'COMPILED · TEST SIMULATION',
+  compiled:formatExportTime(rec.compiledAt),
+  sent:formatExportTime(rec.sentAt),
+  file:rec.fileName||'session.json',
+  detail:stale?'The current session has changed since this JSON was compiled. The archived file remains unchanged. No actual NMR transmission has occurred.':'Times are recorded for the test simulation only; no file has been transmitted to NMR.',
+  stale};
 }
 function remainingTestHerd(){
  const occupied=new Set(animals().map(a=>a.line));
@@ -257,15 +271,19 @@ function dataManagementScreen(){
   '<div><strong>'+data.boxes.length+'</strong><span>Sample boxes</span></div>'+
   '</div>';
  const out='<section class="data-hub-card"><div class="tinycap">OUTBOUND · NMR</div>'+
-  '<div class="data-hub-status">'+safe(status.label)+'</div><p class="hint">'+safe(status.detail)+'</p>'+
-  '<p class="hint">NMR integration is not connected. A simulated send records a status on this device only.</p>'+
-  btn('SIMULATE SEND TO NMR','simulate-nmr-send','secondary wide')+'</section>';
+  '<div class="data-hub-status">'+safe(status.label)+'</div>'+
+  '<div class="data-hub-row"><strong>Data compiled</strong><span>'+safe(status.compiled)+'</span></div>'+
+  '<div class="data-hub-row"><strong>Data sent (simulated)</strong><span>'+safe(status.sent)+'</span></div>'+
+  '<div class="data-hub-row"><strong>What data was sent (simulated)</strong><span>'+safe(status.file)+'</span></div>'+
+  (outboundSnapshot()?btn('DOWNLOAD COMPILED JSON','download-compiled-json','outline wide'):'')+
+  '<p class="hint">'+safe(status.detail)+'</p>'+
+  '<p class="hint">Exporting the session JSON records both timestamps together in this prototype. NMR is not connected.</p></section>';
  const inbound='<section class="data-hub-card"><div class="tinycap">INBOUND · LOCAL DATA</div>'+
   '<div class="data-hub-row"><strong>'+HerdDemo.HERD.length+' demo herd animals</strong><span>Test catalogue loaded locally · not received from NMR</span></div>'+
   '<div class="data-hub-row"><strong>Session JSON</strong><span>Import a previously exported sampling session as a separate record</span></div>'+
   btn('IMPORT SESSION JSON','import','outline wide')+'</section>';
  const files='<section class="data-hub-card"><div class="tinycap">OUTBOUND · FILES</div>'+
-  '<p class="hint">Download the selected session as JSON for testing or review. Downloading does not send it to NMR.</p>'+
+  '<p class="hint">Exporting the selected session compiles a JSON snapshot and records matching simulated compile/send timestamps. This does not send anything to NMR.</p>'+
   btn('EXPORT CURRENT SESSION JSON','export','outline wide')+'</section>';
  const test='<section class="data-hub-card"><div class="tinycap">TEST DATA TOOLS</div>'+
   '<p class="hint">Generate local test records. These are not live animal or NMR records.</p>'+
@@ -287,15 +305,15 @@ function sessionScreen(){
  const stage1=data.phase==='setup'?'Not started':data.phase==='confirmed'||data.phase==='closed'?'Complete':'In progress';
  let body='';
  if(data.phase==='setup')body=`<div class="time-row"><label><span class="tinycap">MILKING START</span>${timeInput('milking-start',data.start)}</label><label><span class="tinycap">MILKING END</span>${timeInput('milking-end',data.end)}</label></div>${btn('START LINKING','start-link','primary wide',valid?'':'disabled')}`;
- else if(data.phase==='closed')body='<div class="notice ok">Session is closed and read-only.</div>';
+ else if(data.phase==='closed')body='<div class="notice ok">Sampling is closed. Sample linking is read-only; test assignments remain editable until laboratory receipt.</div>';
  else if(data.phase==='confirmed')body=`<div class="notice ok">${linked().length} linked · ${noSample().length} no sample</div>${btn('REOPEN LINKING','reopen-linking','outline wide')}`;
  else body=`${btn('OPEN SAMPLE LINKING','goto-linking','secondary wide')}<div style="height:7px"></div>${btn('ALL SAMPLES LINKED','confirm-linking','outline wide')}`;
  const sampledCount=sampledAnimals().length;
  const testedCount=sampledAnimals().filter(a=>animalTests(a).length>0).length;
- const addTestsState=data.phase==='closed'?(testedCount?'Complete':'Not required'):!sampledCount?'Locked':testedCount?testedCount+' with tests':'Optional';
+ const addTestsState=!sampledCount?'Locked':testedCount?testedCount+' with tests':'Optional';
  const addTestsContent=sampledCount
-  ?'<div class="hint">'+testedCount+' of '+sampledCount+' sampled animals have tests.</div>'+
-   (data.phase==='closed'?'':btn(testedCount?'MANAGE TESTS':'ADD TESTS','goto-tests','secondary wide'))
+  ?'<div class="hint">'+testedCount+' of '+sampledCount+' sampled animals have tests. Changes are allowed until laboratory receipt.</div>'+
+   btn(testedCount?'MANAGE TESTS':'ADD TESTS','goto-tests','secondary wide')
   :'';
  const stages=stage(1,'Sample linking',stage1,body,data.phase!=='confirmed'&&data.phase!=='closed')+
  stage(2,'Sync & consolidation',data.phase==='confirmed'||data.phase==='closed'?'Complete':'Locked',data.phase==='confirmed'||data.phase==='closed'?'<div class="hint">Single-device prototype: no synchronisation service connected.</div>':'')+
@@ -303,7 +321,7 @@ function sessionScreen(){
  stage(4,'Add tests',addTestsState,addTestsContent,!!sampledCount&&data.phase!=='closed')+
  stage(5,'Sample boxes',data.boxesConfirmed?'Complete':data.phase==='confirmed'?'Outstanding':'Locked',data.phase==='confirmed'?btn('SCAN SAMPLE BOXES','goto-boxes','secondary wide'):'');
  const html=`<div class="tinycap">SESSION STATUS</div><div class="heading">${status}</div><section class="card"><div class="details-head"><span class="tinycap">SESSION DETAILS</span>${data.phase!=='closed'?btn('EDIT','edit-session','secondary smallbtn'):'<span>READ ONLY</span>'}</div><div class="details-grid">${detail('ORGANISATION',data.org)}${detail('SITE · ST-120455',data.site)}${detail('HERD',data.herd)}${detail('METHOD','Post-milking')}${detail('MILKING',`${data.start||'—'} – ${data.end||'—'}`)}${detail('SESSION ID',data.session)}${detail('YIELDS',data.yields?'Required':'Not required')}${detail('DEVICES','1 device')}</div></section>${stages}`;
- const foot=data.phase==='closed'?btn('EXPORT SESSION','export','outline wide'):btn('CLOSE SAMPLING SESSION','ask-close','primary wide',data.phase==='confirmed'&&data.boxesConfirmed&&!dupLines().size?'':'disabled');
+ const foot=data.phase==='closed'?'':btn('CLOSE SAMPLING SESSION','ask-close','primary wide',data.phase==='confirmed'&&data.boxesConfirmed&&!dupLines().size?'':'disabled');
  return [html,foot];
 }
 function animalCard(a,options={}){
