@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.4.3';
+const VERSION='1.4.4';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -176,10 +176,10 @@ function sessionsScreen(){
 function testManagementScreen(){
  const sampled=sampledAnimals();
  const view=sampled.filter(a=>(testFilter==='with'?testManagerDraft.has(a.uid):testFilter==='without'?!testManagerDraft.has(a.uid):true)&&(!testQuery||a.line.includes(testQuery)||a.sample.includes(testQuery)));
- const rows=view.map(a=>'<label class="test-manager-row"><input type="checkbox" data-test-uid="'+safe(a.uid)+'" '+(testManagerDraft.has(a.uid)?'checked':'')+'><span class="test-manager-animal"><strong>'+safe(a.line)+'</strong><span>Sample '+safe(a.sample)+'</span></span></label>').join('');
+ const rows=view.map(a=>{const existing=animalTests(a);return '<label class="test-manager-row"><input type="checkbox" data-test-uid="'+safe(a.uid)+'" '+(testManagerDraft.has(a.uid)?'checked':'')+'><span class="test-manager-animal"><strong>'+safe(a.line)+'</strong><span>Sample '+safe(a.sample)+'</span>'+(existing.length?'<span>Tests: '+existing.map(t=>safe(t)).join(', ')+'</span>':'')+'</span></label>';}).join('');
  const selected=testManagerDraft.size;
  return ['<div class="test-management"><div class="tinycap">TEST MANAGEMENT · '+sampled.length+' SAMPLED ANIMALS</div>'+
-  '<p class="hint">Only animals with a linked sample in this session can have tests added.</p>'+
+  '<p class="hint">Only sampled animals in this session are shown. Each sample can be used for multiple tests.</p>'+
   '<div class="test-tabs">'+TEST_TYPES.map(t=>'<button type="button" data-action="test-select" data-test="'+t+'" class="'+(t===currentTest?'active':'')+'">'+t+'</button>').join('')+'</div>'+
   '<div class="test-filter-row">'+[['with','WITH TEST'],['without','WITHOUT TEST'],['all','ALL']].map(([k,v])=>'<button type="button" data-action="test-filter" data-filter="'+k+'" class="'+(k===testFilter?'active':'')+'">'+v+'</button>').join('')+'</div>'+
   '<input class="input" id="test-search" type="search" placeholder="Search line or sample ID" value="'+safe(testQuery)+'">'+
@@ -654,7 +654,7 @@ function doAction(action,button){
  }
  case 'test-select':{
   if(!TEST_TYPES.includes(button.dataset.test))break;
-  currentTest=button.dataset.test;resetTestDraft();render();break;
+  currentTest=button.dataset.test;testFilter='all';testQuery='';resetTestDraft();render();break;
  }
  case 'test-filter':if(['all','with','without'].includes(button.dataset.filter)){testFilter=button.dataset.filter;render();}break;
  case 'test-select-all':{
@@ -664,7 +664,7 @@ function doAction(action,button){
  }
  case 'test-save':
   for(const a of sampledAnimals())assignSampledTest(a.uid,currentTest,testManagerDraft.has(a.uid));
-  store();testFilter='with';render();toast(currentTest+' tests saved.');break;
+  store();testFilter='all';render();toast(currentTest+' tests saved. Samples remain available for other tests.');break;
  
  case 'modal-close':closeModal();break;
  case 'backdrop':closeModal();break;
