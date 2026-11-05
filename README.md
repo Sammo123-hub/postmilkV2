@@ -117,7 +117,7 @@ Sample Boxes uses the narrower full-image scanner preview with **SCAN NEXT BOX**
 
 ## Data Management, test seeding and simulated NMR delivery (v1.5.0)
 
-**Session Management → Sync & consolidation → Data Management**, or **Main menu → Data Management**, opens a local data-flow hub for the selected session. It summarises animals in the sampling list, linked samples, animals with tests and scanned sample boxes.
+**Main menu → Data Management** opens a separate local data-flow hub for the selected session. **Sync & consolidation** in Session Management remains unchanged and has no link to Data Management. It summarises animals in the sampling list, linked samples, animals with tests and scanned sample boxes.
 
 - **Inbound** displays the locally seeded 70-animal demo herd (not a live NMR download) and offers **Import Session JSON**. The import adds a new session to the session list, retaining existing sessions.
 - **Outbound → Files** offers **Export Current Session JSON**. JSON import/export now live here; the former standalone menu JSON items have been removed.
