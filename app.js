@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.8.11';
+const VERSION='1.8.12';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -47,7 +47,7 @@ function load(){
   d.phase=legacyPhases[d.phase]||d.phase;
   if(stored.closed)d.phase='closed';
  }
- d.animals=(Array.isArray(d.animals)?d.animals:[]).map((a,i)=>({uid:a.uid||uid(),line:String(a.line||''),yield:String(a.yield||''),sample:String(a.sample||''),linkedSequence:Number(a.linkedSequence)||0,linkedAt:a.linkedAt||'',noSampleReason:String(a.noSampleReason||''),removed:!!a.removed,tests:Array.isArray(a.tests)?a.tests.filter(x=>['JOHNES','BVD','PAG','NEO'].includes(x)):[]}));
+ d.animals=(Array.isArray(d.animals)?d.animals:[]).map((a,i)=>({uid:a.uid||uid(),line:String(a.line||''),yield:String(a.yield||''),sample:String(a.sample||''),linkedSequence:Number(a.linkedSequence)||0,linkedAt:a.linkedAt||'',noSampleReason:String(a.noSampleReason||''),autoNoSample:!!a.autoNoSample,removed:!!a.removed,tests:Array.isArray(a.tests)?a.tests.filter(x=>['JOHNES','BVD','PAG','NEO'].includes(x)):[]}));
  d.animals.forEach((a,i)=>{if(a.sample&&!a.linkedSequence)a.linkedSequence=i+1});
  d.testAssignments=d.testAssignments&&typeof d.testAssignments==='object'&&!Array.isArray(d.testAssignments)?d.testAssignments:{};
  d.boxes=Array.isArray(d.boxes)?d.boxes.filter(b=>b&&b.id).map(b=>({id:String(b.id),time:String(b.time||'')})):[];
@@ -71,7 +71,7 @@ function normaliseRecord(raw){
   const linkedSample=!!a.sample&&!a.removed;
   const existing=Array.isArray(a.tests)?a.tests:[];
   const prior=Array.isArray(legacy[a.line])?legacy[a.line]:[];
-  return {...a,tests:linkedSample?[...new Set([...existing,...prior])].filter(t=>['JOHNES','BVD','PAG','NEO'].includes(t)):[]};
+  return {...a,autoNoSample:!!a.autoNoSample&&!linkedSample&&!a.removed&&a.noSampleReason==='Not sampled',tests:linkedSample?[...new Set([...existing,...prior])].filter(t=>['JOHNES','BVD','PAG','NEO'].includes(t)):[]};
  });
  result.testAssignments={};
  result.labReceivedAt=typeof result.labReceivedAt==='string'?result.labReceivedAt:'';
@@ -321,7 +321,35 @@ const duplicateSampleIds=()=>{
 };
 const blockingIssues=()=>dupLines().size+duplicateSampleIds().size;
 const needsIssueReview=()=>noSample().filter(a=>!a.noSampleReason||a.noSampleReason==='Not sampled').length;
-const canFinish=()=>!waiting().length&&!blockingIssues();
+// Only session animals can be awaiting; herd animals not selected for the
+// session are intentionally absent from data.animals.
+const canFinish=()=>data.phase==='linking'&&!blockingIssues();
+function confirmSamplingLinks(){
+ if(!canFinish())return false;
+ // Classify only animals explicitly added to THIS session, and only on
+ // confirmation. Unselected herd animals remain NOT ADDED.
+ for(const a of waiting()){
+  a.noSampleReason='Not sampled';
+  a.autoNoSample=true;
+ }
+ data.phase='confirmed';
+ data.confirmedAt=timestamp();
+ return true;
+}
+function reopenSamplingLinks(){
+ if(data.phase==='confirmed'){
+  // Restore only automatic classifications. Preserve deliberate No Sample
+  // reasons assigned by the user before confirmation.
+  for(const a of animals()){
+   if(!a.autoNoSample)continue;
+   if(!a.sample&&a.noSampleReason==='Not sampled')a.noSampleReason='';
+   a.autoNoSample=false;
+  }
+ }
+ data.phase='linking';
+ data.boxesConfirmed=false;
+}
+
 function store(){if(activeRecordId)data.changeRevision=(Number(data.changeRevision)||0)+1;syncActiveSession();persistRegistry();}
 function toast(t){if(!$('#toast-root'))return;$('#toast-root').innerHTML=`<div class="toast">${safe(t)}</div>`;clearTimeout(toaster);toaster=setTimeout(()=>$('#toast-root').replaceChildren(),3000);}
 function sound(){try{const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)return;soundCtx||=new Audio();const o=soundCtx.createOscillator(),g=soundCtx.createGain();o.frequency.value=840;g.gain.setValueAtTime(.075,soundCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,soundCtx.currentTime+.14);o.connect(g).connect(soundCtx.destination);o.start();o.stop(soundCtx.currentTime+.15);navigator.vibrate?.(40);}catch{}}
@@ -467,7 +495,7 @@ function bulkAddTestAnimals(count){
  if(data.phase==='setup')data.phase='adding';
  // If the user adds animals after confirming a session, its sample linking
  // needs review before the session can be completed again.
- if(data.phase==='confirmed'){data.phase='linking';data.boxesConfirmed=false;}
+ if(data.phase==='confirmed')reopenSamplingLinks();
  store();
  return true;
 }
@@ -492,9 +520,10 @@ function bulkGenerateSampleLinks(count){
   const a=selected[i];
   a.sample=ids[i];a.linkedSequence=++sequence;a.linkedAt=now;
   if(recordYields()&&!a.yield)a.yield=(11+(Number(ids[i])%170)/10).toFixed(1);
-  a.noSampleReason='';
+  a.noSampleReason='';a.autoNoSample=false;
  }
- if(['setup','adding','check','confirmed'].includes(data.phase))data.phase='linking';
+ if(data.phase==='confirmed')reopenSamplingLinks();
+ if(['setup','adding','check'].includes(data.phase))data.phase='linking';
  data.startedAt||=now;data.boxesConfirmed=false;
  store();return true;
 }
@@ -546,7 +575,7 @@ function sessionScreen(){
  if(data.phase==='setup')body=`<div class="time-row"><label><span class="tinycap">MILKING START</span>${timeInput('milking-start',data.start)}</label><label><span class="tinycap">MILKING END</span>${timeInput('milking-end',data.end)}</label></div>${btn('START LINKING','start-link','primary wide',valid?'':'disabled')}`;
  else if(data.phase==='closed')body='<div class="notice ok">Sampling is closed. Sample linking is read-only; test assignments remain editable until laboratory receipt.</div>';
  else if(data.phase==='confirmed')body=`<div class="notice ok">${linked().length} linked · ${noSample().length} no sample</div>${btn('REOPEN LINKING','reopen-linking','outline wide')}`;
- else body=`${btn('OPEN SAMPLE LINKING','goto-linking','secondary wide')}<div style="height:7px"></div>${btn('ALL SAMPLES LINKED','confirm-linking','outline wide')}`;
+ else body=`${btn('OPEN SAMPLE LINKING','goto-linking','secondary wide')}<div style="height:7px"></div>${btn('CONFIRM SAMPLING','confirm-linking','outline wide')}`;
  const sampledCount=sampledAnimals().length;
  const testedCount=sampledAnimals().filter(a=>animalTests(a).length>0).length;
  const addTestsState=testsLocked()?'Locked · lab receipt':!sampledCount?'Locked':testedCount?testedCount+' with tests':'Optional';
@@ -767,7 +796,7 @@ function linkSample(raw,specificUid=''){
  const target=specificUid?animals().find(a=>a.uid===specificUid):next();
  if(!target||target.sample||target.noSampleReason){toast('No awaiting animal available');return false}
  target.sample=code;target.linkedSequence=Math.max(0,...linked().map(a=>a.linkedSequence||0))+1;
- target.linkedAt=timestamp();store();sound();refreshLinkingAfterScan();flash();
+ target.linkedAt=timestamp();target.autoNoSample=false;store();sound();refreshLinkingAfterScan();flash();
  scanStatus(`✓ Linked ${target.line} to ${code}. ${waiting().length?`Ready for ${next().line}`:'All animals processed.'}`);
  if(!waiting().length&&page==='linking')setTimeout(()=>{stopCamera();},350);
  return true;
@@ -1115,7 +1144,9 @@ function openModal(name,which='',options={}){
  if(name==='herd-yield')html=HerdDemo.yieldMarkup(animal);
  if(name==='herd-catalog')html=HerdDemo.catalog();
  if(name==='no-sample'&&animal)html=`<h2>No sample: ${safe(animal.line)}</h2><label class="field-label">REASON (OPTIONAL)</label><select class="input" id="no-sample-reason"><option>Not sampled</option><option>Dry</option><option>Sold</option><option>Antibiotics</option><option>Animal absent</option><option>Sample lost</option><option>Insufficient milk</option><option>Other</option></select><div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','save-no-sample','secondary')}</div>`;
- if(name==='confirm-linking')html=`<h2>All samples linked?</h2><p class="hint">${waiting().length?`${waiting().length} animals are still awaiting samples. Link them or mark them as No sample before confirming.`:'All animals have been dealt with. Confirm this stage to continue to sample boxes.'}</p>${blockingIssues()?`<div class="notice warning">Duplicate animal records or Sample IDs must be resolved first.</div>`:''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
+ if(name==='confirm-linking')html=`<h2>Confirm sampling?</h2><p class="hint">${waiting().length
+ ?`${waiting().length} animal${waiting().length===1?' is':'s are'} still awaiting a sample pot. On confirmation, ${waiting().length===1?'this animal will':'these animals will'} be marked No Sample (Not sampled).`
+ :'All animals added to this session are linked or marked No Sample.'} Animals in the herd data that were NOT ADDED to this session will remain Not Added.</p>${blockingIssues()?`<div class="notice warning">Duplicate animal records or Sample IDs must be resolved first.</div>`:''}${data.phase!=='linking'?'<div class="notice warning">Start sample linking before confirming.</div>':''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM SAMPLING','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
  if(name==='confirm-lab-receipt')html='<h2>Simulate laboratory receipt?</h2><p class="hint">This marks samples received at the laboratory for this local demo. Test assignments become permanently read-only. No actual NMR or laboratory service is connected.</p><div class="buttons">'+btn('CANCEL','modal-close','outline')+btn('CONFIRM DEMO RECEIPT','confirm-lab-receipt','danger')+'</div>';
  if(name==='confirm-close')html=`<h2>Close sampling session?</h2><p class="hint">Closing makes sample linking and boxes read-only. Tests remain editable until laboratory receipt. This prototype does not send data to NMR; use Data Management to export JSON.</p><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('CLOSE SESSION','do-close','danger')}</div>`;
  $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':name==='menu'?'menu-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':name==='menu'?'menu-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':name==='menu'?'Main menu':'Post-milking'}">${name==='menu'||name==='capture'||name==='herd-picker'||name==='herd-yield'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
@@ -1243,13 +1274,13 @@ function doAction(action,button){
   if(!a||!a.sample||data.phase==='closed')return;
   if(!confirm('Remove this sample link and its assigned tests?'))return;
   a.sample='';a.linkedAt='';a.linkedSequence=0;a.tests=[];
-  if(data.phase==='confirmed'){data.phase='linking';data.boxesConfirmed=false;}
+  if(data.phase==='confirmed')reopenSamplingLinks();
   store();navigate('animal-detail');break;
  }
  case 'detail-link-sample':{
   const a=animals().find(x=>x.uid===detailUid);
   if(!a||a.sample||data.phase==='closed')return toast('This record cannot be linked now.');
-  if(data.phase==='confirmed'){data.phase='linking';data.boxesConfirmed=false;store();}
+  if(data.phase==='confirmed'){reopenSamplingLinks();store();}
   openModal('manual-animal',a.uid);break;
  }
  case 'detail-add-test':{
@@ -1443,14 +1474,14 @@ function doAction(action,button){
  case 'save-manual':{const v=$('#manual-id')?.value||'';const ok=page==='boxes'?boxScan(v):linkSample(v);if(ok){closeModal(false);if(page==='linking'&&waiting().length||page==='boxes')startCamera();}break;}
  case 'animal':{const a=animals().find(x=>x.uid===button.dataset.uid);if(!a)return;selectedUid=a.uid;openModal(data.phase==='linking'&&!a.sample&&!a.noSampleReason&&(page==='linking'||page==='animals')?'capture':'animal',a.uid);break;}
  case 'save-animal-details':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;const line=$('#animal-line').value.trim(),yieldKg=recordYields()?$('#animal-yield')?.value.trim()||'':'';if(!/^[-\w]{1,25}$/.test(line)||animals().some(b=>b!==a&&b.line===line))return toast('Invalid or duplicate animal line');if(yieldKg!==''&&(!Number.isFinite(+yieldKg)||+yieldKg<0))return toast('Invalid yield');a.line=line;a.yield=yieldKg;store();closeModal(false);render();if(page==='linking'&&data.phase==='linking'&&waiting().length)startCamera();break;}
- case 'unlink-animal':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.sample='';a.linkedSequence=0;a.linkedAt='';a.tests=[];if(data.phase==='confirmed'){data.phase='linking';data.boxesConfirmed=false}store();closeModal(false);render();if(page==='linking')startCamera();break;}
+ case 'unlink-animal':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.sample='';a.linkedSequence=0;a.linkedAt='';a.tests=[];if(data.phase==='confirmed')reopenSamplingLinks();store();closeModal(false);render();if(page==='linking')startCamera();break;}
  case 'no-sample':openModal('no-sample',selectedUid);break;
- case 'save-no-sample':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.noSampleReason=$('#no-sample-reason').value;a.sample='';a.linkedSequence=0;a.tests=[];store();closeModal(false);render();if(page==='linking'&&waiting().length)startCamera();break;}
- case 'undo-no-sample':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.noSampleReason='';store();closeModal(false);render();if(page==='linking')startCamera();break;}
+ case 'save-no-sample':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.noSampleReason=$('#no-sample-reason').value;a.autoNoSample=false;a.sample='';a.linkedSequence=0;a.tests=[];store();closeModal(false);render();if(page==='linking'&&waiting().length)startCamera();break;}
+ case 'undo-no-sample':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.noSampleReason='';a.autoNoSample=false;if(data.phase==='confirmed')reopenSamplingLinks();store();closeModal(false);render();if(page==='linking')startCamera();break;}
  case 'remove-animal':{const a=animals().find(a=>a.uid===selectedUid);if(!a||!confirm('Remove '+a.line+' from this session?'))return;a.removed=true;a.tests=[];store();closeModal(false);render();if(page==='linking'&&waiting().length)startCamera();break;}
  case 'confirm-linking':openModal('confirm-linking');break;
- case 'do-confirm-linking':if(!canFinish())return toast('Deal with awaiting and blocking duplicate records first');data.phase='confirmed';data.confirmedAt=timestamp();store();navigate('session');break;
- case 'reopen-linking':data.phase='linking';data.boxesConfirmed=false;store();navigate('linking',{autoCamera:true});break;
+ case 'do-confirm-linking':if(!confirmSamplingLinks())return toast('Start sample linking and resolve duplicate records before confirming.');store();navigate('session');break;
+ case 'reopen-linking':reopenSamplingLinks();store();navigate('linking',{autoCamera:true});break;
  case 'ask-lab-receipt':if(data.phase!=='closed'||testsLocked())return toast('Close the session before laboratory receipt.');openModal('confirm-lab-receipt');break;
  case 'confirm-lab-receipt':if(data.phase!=='closed'||testsLocked())return toast('Demo lab receipt cannot be recorded now.');data.labReceivedAt=timestamp();store();closeModal(false);navigate('session');toast('Laboratory receipt simulated. Tests locked.');break;
  case 'ask-close':if(data.phase!=='confirmed'||!data.boxesConfirmed||blockingIssues())return toast('Finish sampling, resolve duplicate issues and scan boxes first');openModal('confirm-close');break;
