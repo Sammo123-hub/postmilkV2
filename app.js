@@ -141,6 +141,59 @@ function siteScreen(){
 function signInScreen(){
  return ['<div class="journey-page"><div class="tinycap">DEMONSTRATION ACCESS · NO LIVE AUTHORISATION</div><h2>Milk Sampling</h2><p class="hint">Use the fictional account to explore the complete end-to-end workflow. No password, customer account or real NMR service is used.</p><section class="journey-card"><label class="field-label">DEMO USER</label><strong>'+safe(demoAccount.user)+'</strong><p>'+safe(demoAccount.email)+'</p><label class="field-label">ROLE</label><select id="demo-signin-role" class="input"><option value="farmer">Farmer · DIY</option><option value="sampler">Sampling operator</option></select><div class="notice">Device PM-DEMO-0142 · Authorisation simulated locally</div></section></div>',btn('ENTER DEMO APP','demo-sign-in','primary wide')];
 }
+
+function startDemoWizard(){
+ const site=demoAccount.sites[0];
+ wizardDraft={siteId:site?.id||'',herd:site?.herds?.[0]||'',date:new Date().toISOString().slice(0,10),milking:'AM',
+  type:'Milk quality testing',instructions:'',extraTests:[]};
+ wizardStep=1;
+ navigate('new-session-flow');
+}
+function wizardSite(){return demoAccount.sites.find(s=>s.id===wizardDraft?.siteId)||null}
+function wizardSaveDetails(){
+ const date=$('#wizard-date')?.value||'',milking=$('#wizard-milking')?.value||'',instructions=$('#wizard-instructions')?.value.trim()||'';
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!['AM','PM','AM + PM'].includes(milking))return false;
+ wizardDraft.date=date;wizardDraft.milking=milking;wizardDraft.instructions=instructions;
+ return true;
+}
+function wizardScreen(){
+ if(!wizardDraft)return ['<div class="notice">Start a new session from Sampling Sessions.</div>',btn('SAMPLING SESSIONS','goto-sessions','outline wide')];
+ const site=wizardSite();
+ const top='<div class="journey-stepper">'+['1 · Location','2 · Details','3 · Review'].map((label,i)=>'<span class="'+(wizardStep===i+1?'active':'')+'">'+label+'</span>').join('')+'</div>';
+ let html='',foot='';
+ if(wizardStep===1){
+  const siteOptions='<div class="journey-site-select">'+demoAccount.sites.map(t=>'<label><input type="radio" data-wizard-site="'+safe(t.id)+'" name="wizard-site" '+(t.id===wizardDraft.siteId?'checked':'')+'><span><strong>'+safe(t.name)+'</strong><small>'+safe(t.address)+'</small><small>'+safe(demoSiteDesc(t))+' · Herds '+safe(t.herds.join(', '))+'</small></span></label>').join('')+'</div>';
+  const herdOptions=site&&site.herds.length>1?site.herds.map(h=>'<label class="journey-check"><input type="radio" name="wizard-herd" data-wizard-herd="'+safe(h)+'" '+(h===wizardDraft.herd?'checked':'')+'> Herd '+safe(h)+'</label>').join(''):'<strong>Herd '+safe(site?.herds?.[0]||'—')+' · selected automatically</strong>';
+  html='<div class="journey-card"><div class="tinycap">FARM · FIXED FOR THIS DEMO DEVICE</div><strong>'+safe(demoAccount.farm)+'</strong></div><section class="journey-card"><div class="tinycap">PARLOUR SITE</div>'+siteOptions+'</section><section class="journey-card"><div class="tinycap">HERD AT THIS SITE</div>'+herdOptions+'</section>';
+  foot=btn('CANCEL','wizard-cancel','outline')+btn('NEXT · DETAILS','wizard-next','primary',site&&wizardDraft.herd?'':'disabled');
+ }else if(wizardStep===2){
+  html='<section class="journey-card"><div class="tinycap">WHEN</div><label class="field-label">SAMPLING DATE</label><input id="wizard-date" type="date" class="input" value="'+safe(wizardDraft.date)+'">'+
+   '<label class="field-label">MILKING</label><select id="wizard-milking" class="input">'+['AM','PM','AM + PM'].map(x=>'<option '+(wizardDraft.milking===x?'selected':'')+'>'+x+'</option>').join('')+'</select>'+
+   '<div class="tinycap">SESSION TYPE</div><strong>Milk quality testing</strong><p class="hint">Disease-test and BVD ear-tag session creation are not connected in this prototype.</p>'+
+   '<label class="field-label">INSTRUCTIONS FOR SAMPLER</label><textarea id="wizard-instructions" class="input" rows="3">'+safe(wizardDraft.instructions)+'</textarea>'+
+   '<div class="tinycap">TESTS</div><p class="hint">Tests can be assigned to linked sample pots during or after sampling, independently of Sample Boxes.</p></section>';
+  foot=btn('BACK','wizard-back','outline')+btn('NEXT · REVIEW','wizard-next','primary');
+ }else if(wizardStep===3){
+  html='<section class="journey-card"><div class="journey-card-head"><strong>LOCATION</strong>'+btn('EDIT','wizard-edit-location','outline')+'</div><div class="journey-plain-row">Farm <strong>'+safe(demoAccount.farm)+'</strong></div><div class="journey-plain-row">Parlour <strong>'+safe(site?.name||'—')+'</strong></div><div class="journey-plain-row">Herd <strong>'+safe(wizardDraft.herd)+'</strong></div></section>'+
+   '<section class="journey-card"><div class="journey-card-head"><strong>SESSION</strong>'+btn('EDIT','wizard-edit-details','outline')+'</div><div class="journey-plain-row">Date <strong>'+safe(shortDate(wizardDraft.date))+'</strong></div><div class="journey-plain-row">Milking <strong>'+safe(wizardDraft.milking)+'</strong></div><div class="journey-plain-row">Type <strong>Milk quality testing</strong></div><p>'+safe(wizardDraft.instructions||'No instructions')+'</p></section><p class="hint">CREATE makes a local demo session. No ID is requested from NMR.</p>';
+  foot=btn('BACK','wizard-back','outline')+btn('CREATE SESSION','wizard-create','primary');
+ }
+ return ['<div class="journey-page"><div class="tinycap">AD HOC SESSION · '+safe(demoAccount.farm)+'</div><h2>Create sampling session</h2>'+top+html+'</div>','<div class="journey-actions">'+foot+'</div>'];
+}
+function sessionCreatedScreen(){
+ return ['<div class="journey-page"><div class="journey-done-label">✓ DEMO SESSION CREATED</div><h2>'+safe(data.session)+'</h2><section class="journey-card"><div class="tinycap">SAMPLING DATA ON THIS DEVICE</div><div class="journey-plain-row">Session information <strong>Prepared locally</strong></div><div class="journey-plain-row">Parlour configuration <strong>Demo</strong></div><div class="journey-plain-row">Animal data <strong>'+ (demoPrefs.downloadAuto?'Demo catalogue ready':'Update optional') +'</strong></div><div class="journey-plain-row">Tests <strong>Available after pot linking</strong></div></section><p class="hint">This session is stored on this browser only. NMR has not registered or accepted it.</p></div>',btn('VIEW SESSION','view-created-session','primary wide')+btn('SAMPLING SESSIONS','goto-sessions','outline wide')];
+}
+function animalRecordsScreen(){
+ const ready=!!data.animalDataUpdatedAt;
+ const label=ready?formatExportTime(data.animalDataUpdatedAt):'Not yet refreshed on this device';
+ return ['<div class="journey-page"><div class="tinycap">SESSION '+safe(data.session)+'</div><h2>Animal records on this device</h2><section class="journey-card"><div class="journey-plain-row">Site <strong>'+safe(data.site)+'</strong></div><div class="journey-plain-row">Herd <strong>'+safe(data.herd)+'</strong></div><div class="journey-plain-row">Sample date <strong>'+safe(shortDate(data.sampleDate))+'</strong></div><div class="journey-plain-row">Last demo update <strong>'+safe(label)+'</strong></div><div class="journey-plain-row">Test catalogue <strong>'+HerdDemo.HERD.length+' fictional animals</strong></div></section><p class="hint">Optional. Continue with the records on this device, or refresh the local demo catalogue timestamp. This does not download data from NMR.</p></div>',btn('CONTINUE','animal-records-continue','primary wide')+btn('REFRESH DEMO RECORDS','animal-records-refresh','outline wide')];
+}
+function sessionDetailsScreen(){
+ const editable=data.phase!=='closed';
+ return ['<div class="journey-page"><h2>Session details</h2><section class="journey-card"><div class="tinycap">SESSION ID · FIXED</div><strong>'+safe(data.session)+'</strong><div class="tinycap">SITE / FARM</div><strong>'+safe(data.site)+'</strong><div class="tinycap">HERD</div><strong>'+safe(data.herd)+'</strong><div class="tinycap">ORGANISATION</div><strong>'+safe(data.org)+'</strong><div class="tinycap">METHOD</div><strong>Post-milking</strong><div class="tinycap">DATE</div><p>'+safe(shortDate(data.sampleDate))+'</p><div class="tinycap">MILKING</div><p>'+safe(data.milking||'Not specified')+'</p></section>'+
+  (editable?'<section class="journey-card"><label class="field-label">MILKING START (HH:MM)</label>'+timeInput('edit-start',data.start)+'<label class="field-label">MILKING END (HH:MM)</label>'+timeInput('edit-end',data.end)+'<label class="journey-check"><input type="checkbox" id="edit-yields" '+(data.yields?'checked':'')+'> Yields required</label><label class="field-label">INSTRUCTIONS</label><textarea class="input" id="edit-instructions" rows="3">'+safe(data.instructions||'')+'</textarea></section>':'<p class="hint">This sampling session is closed. Details can no longer be edited.</p>')+
+  '<p class="hint">Session ID, farm and herd cannot be changed after the session is created.</p></div>',editable?'<div class="journey-actions">'+btn('CANCEL','goto-session','outline')+btn('SAVE DETAILS','save-session-details','secondary')+'</div>':btn('SESSION MANAGEMENT','goto-session','outline wide')];
+}
 function settingsOverviewScreen(){
  return ['<div class="journey-page"><div class="tinycap">DEVICE · PM-DEMO-0142</div><h2>Settings</h2><section class="journey-card">'+[
  ['sampling-settings','Sampling','Add '+demoPrefs.addMode+' · scan '+demoPrefs.scanMode],
@@ -213,7 +266,7 @@ function sound(){try{const Audio=window.AudioContext||window.webkitAudioContext;
 const btn=(label,act,cls='',attrs='')=>`<button class="btn ${cls}" type="button" data-action="${act}" ${attrs}>${label}</button>`;
 function normalTime(value){let s=String(value||'').trim();if(!s)return '';if(/^\d{4}$/.test(s))s=s.slice(0,2)+':'+s.slice(2);const match=s.match(/^(\d{1,2}):(\d{2})$/);if(!match)return '';const h=+match[1],m=+match[2];return h<=23&&m<=59?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`:'';}
 function timeInput(id,value){return `<input class="time-input" id="${id}" value="${safe(value)}" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocorrect="off" autocapitalize="off" autocomplete="off" spellcheck="false" aria-label="${id.includes('start')?'Milking start':'Milking end'} time" data-complete="${normalTime(value)?'1':'0'}">`;}
-function header(){let name={signin:'Sign in',account:'DIY account',site:'DIY site',settings:'Settings','sampling-settings':'Sampling settings','data-settings':'Data settings',about:'About',sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',boxes:'Scan sample boxes',tests:'Test management',data:'Data management'}[page];return `<div class="top"><div class="top-inner"><div class="top-name">${(page==='boxes'||page==='tests'||page==='data')?'<button type="button" class="box-back" data-action="goto-session" aria-label="Back to Session management">‹</button>':page==='session'?'<button type="button" class="box-back" data-action="goto-sessions" aria-label="Back to Sampling sessions">‹</button>':''}${name}</div><div class="top-actions"><span class="top-save" id="save-state">${pendingSave?'NOT SAVED':'SAVED'}</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button></div></div></div><div class="farm-strip">${page==='sessions'?'POST-MILKING · SESSION OVERVIEW':safe(data.site)+' · '+(page==='session'||page==='boxes'?'SESSION '+safe(data.session):'HERD '+safe(data.herd))}</div>`;}
+function header(){let name={'new-session-flow':'Create session','session-created':'Session created','animal-records':'Session animal records','session-details':'Session details',signin:'Sign in',account:'DIY account',site:'DIY site',settings:'Settings','sampling-settings':'Sampling settings','data-settings':'Data settings',about:'About',sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',boxes:'Scan sample boxes',tests:'Test management',data:'Data management'}[page];return `<div class="top"><div class="top-inner"><div class="top-name">${(page==='boxes'||page==='tests'||page==='data')?'<button type="button" class="box-back" data-action="goto-session" aria-label="Back to Session management">‹</button>':page==='session'?'<button type="button" class="box-back" data-action="goto-sessions" aria-label="Back to Sampling sessions">‹</button>':''}${name}</div><div class="top-actions"><span class="top-save" id="save-state">${pendingSave?'NOT SAVED':'SAVED'}</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button></div></div></div><div class="farm-strip">${page==='sessions'?'POST-MILKING · SESSION OVERVIEW':safe(data.site)+' · '+(page==='session'||page==='boxes'?'SESSION '+safe(data.session):'HERD '+safe(data.herd))}</div>`;}
 function stage(number,title,state,content='',current=false){return `<section class="stage ${current?'current':state==='Complete'?'complete':''}">${current?'<span class="tinycap">CURRENT · NEXT STEP</span>':''}<div class="stage-row"><span class="stage-num">${state==='Complete'?'✓':number}</span><span class="stage-title">${safe(title)}</span><span class="stage-state ${state==='Complete'?'done':''}">${safe(state)}</span></div>${content}</section>`;}
 function detail(k,v){return `<div><span class="tinycap">${safe(k)}</span><div class="detail-value">${safe(v)}</div></div>`;}
 const TEST_TYPES=['JOHNES','BVD','PAG','NEO'];
@@ -247,17 +300,24 @@ function commitTestSelection(){
  return changed;
 }
 function sessionsScreen(){
- const list=sessions.slice().reverse().map(rec=>{
+ const filtered=sessions.filter(rec=>(sessionListStatus==='all'||(sessionListStatus==='closed'?rec.phase==='closed':rec.phase!=='closed'))&&
+  (sessionListSite==='all'||rec.site===sessionListSite));
+ filtered.sort((a,b)=>{const date=String(a.sampleDate||a.session||'').localeCompare(String(b.sampleDate||b.session||''));return sessionListSort==='oldest'?date:-date});
+ const sites=[...new Set(sessions.map(rec=>rec.site).filter(Boolean))];
+ const controls='<div class="journey-grid-2"><select class="input" id="session-filter-status" aria-label="Filter sessions by status">'+[['all','All statuses'],['open','To sample'],['closed','Closed']].map(([k,v])=>'<option value="'+k+'" '+(sessionListStatus===k?'selected':'')+'>'+v+'</option>').join('')+'</select>'+
+ '<select class="input" id="session-filter-site" aria-label="Filter sessions by parlour">'+[['all','All sites'],...sites.map(site=>[site,site])].map(([k,v])=>'<option value="'+safe(k)+'" '+(sessionListSite===k?'selected':'')+'>'+safe(v)+'</option>').join('')+'</select></div>'+
+ '<select class="input" id="session-sort" aria-label="Sort sessions"><option value="newest" '+(sessionListSort==='newest'?'selected':'')+'>Newest first</option><option value="oldest" '+(sessionListSort==='oldest'?'selected':'')+'>Oldest first</option></select>';
+ const list=filtered.map(rec=>{
   const added=(rec.animals||[]).filter(a=>!a.removed);
   const linkedCount=added.filter(a=>!!a.sample).length;
   return '<button type="button" class="sampling-session-row" data-action="open-session" data-record-id="'+safe(rec.recordId)+'">'+
    '<div class="sampling-session-main"><strong>'+safe(rec.site||'Farm')+'</strong><span>'+safe(rec.session||'No ID')+'</span></div>'+
    '<div class="sampling-session-sub"><span>'+safe(rec.herd||'')+' · '+added.length+' animals · '+linkedCount+' linked</span>'+
-   '<span class="session-phase-label '+(rec.phase==='closed'?'is-closed':'')+'">'+safe(sessionPhaseLabel(rec))+'</span></div>'+
+   '<span class="session-phase-label '+(rec.phase==='closed'?'is-closed':'')+'">'+safe(sessionStatusLabel(rec))+'</span></div>'+
    '</button>';
  }).join('');
  return ['<div class="sessions-index"><div class="tinycap">SAMPLING SESSIONS · '+sessions.length+'</div>'+
-  '<p class="hint">Choose a session to continue where you left off, or create a new one.</p>'+
+  '<p class="hint">Select a session, review animal records if available, or create an ad hoc session. All sessions here are local demos.</p>'+controls+
   (list||'<div class="notice">No sampling sessions yet.</div>')+
   '<button type="button" class="btn primary wide" data-action="new-session">+ NEW SESSION</button></div>',''];
 }
@@ -493,7 +553,7 @@ function boxesScreen(){
   '</div>';
  return [html,footer];
 }
-function render(){const [html,foot]=({signin:signInScreen,account:accountScreen,site:siteScreen,settings:settingsOverviewScreen,'sampling-settings':samplingSettingsScreen,'data-settings':dataSettingsScreen,about:aboutScreen,sessions:sessionsScreen,session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen,tests:testManagementScreen,data:dataManagementScreen}[page]||sessionsScreen)();$('#app').innerHTML=`<div class="app">${header()}<main class="body" id="main-scroll">${html}</main>${foot?`<footer class="bottom">${foot}</footer>`:''}</div>`;updateDebug();}
+function render(){const [html,foot]=({'new-session-flow':wizardScreen,'session-created':sessionCreatedScreen,'animal-records':animalRecordsScreen,'session-details':sessionDetailsScreen,signin:signInScreen,account:accountScreen,site:siteScreen,settings:settingsOverviewScreen,'sampling-settings':samplingSettingsScreen,'data-settings':dataSettingsScreen,about:aboutScreen,sessions:sessionsScreen,session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen,tests:testManagementScreen,data:dataManagementScreen}[page]||sessionsScreen)();$('#app').innerHTML=`<div class="app">${header()}<main class="body" id="main-scroll">${html}</main>${foot?`<footer class="bottom">${foot}</footer>`:''}</div>`;updateDebug();}
 function refreshLinkingAfterScan(){
  // Intentionally never render() or replace #qr-reader during a successful QR read.
  const last=$('#last-linked');if(last)last.innerHTML=latest()?animalCard(latest(),{latest:true}):'<div class="no-last">The last linked animal will appear here in green</div>';
@@ -912,7 +972,46 @@ function doAction(action,button){
   render();toast('Linked '+count+' test samples and added missing yields.');break;
  }
  case 'goto-tests':if(!activeRecordId)return toast('Create or select a session first');currentTest='JOHNES';testFilter='all';testQuery='';resetTestDraft();navigate('tests');break;
- case 'new-session':openModal('new-session');break;
+ case 'new-session':startDemoWizard();break;
+ case 'wizard-cancel':wizardDraft=null;navigate('sessions');break;
+ case 'wizard-back':wizardStep=Math.max(1,wizardStep-1);render();break;
+ case 'wizard-edit-location':wizardStep=1;render();break;
+ case 'wizard-edit-details':wizardStep=2;render();break;
+ case 'wizard-next':
+  if(wizardStep===1){
+   const site=wizardSite();
+   if(!site||!site.herds.includes(wizardDraft.herd))return toast('Choose a site and a herd linked to it.');
+   wizardStep=2;render();break;
+  }
+  if(wizardStep===2){
+   if(!wizardSaveDetails())return toast('Enter a valid date and milking.');
+   wizardStep=3;render();break;
+  }
+  break;
+ case 'wizard-create':{
+  if(!wizardDraft||wizardStep!==3)return;
+  const site=wizardSite();
+  if(!site||!site.herds.includes(wizardDraft.herd))return toast('A valid site and herd are required.');
+  const id=newSessionId();
+  data=normaliseRecord({...fresh(),org:demoAccount.farm,site:site.name,herd:wizardDraft.herd,session:id,
+   sampleDate:wizardDraft.date,milking:wizardDraft.milking,sessionType:wizardDraft.type,
+   instructions:wizardDraft.instructions,siteId:site.id,animalsHeld:true,
+   animalDataUpdatedAt:demoPrefs.downloadAuto?timestamp():'',yields:site.yields});
+  activeRecordId=data.recordId;sessions.push(data);store();wizardDraft=null;
+  navigate('session-created');break;
+ }
+ case 'view-created-session':navigate('animal-records');break;
+ case 'animal-records-continue':navigate('session');break;
+ case 'animal-records-refresh':if(!activeRecordId)return toast('Open a session first.');data.animalDataUpdatedAt=timestamp();store();render();toast('Local demo record timestamp refreshed.');break;
+ case 'save-session-details':{
+  if(data.phase==='closed')return toast('Closed session details are read-only.');
+  const start=normalTime($('#edit-start')?.value),end=normalTime($('#edit-end')?.value);
+  if(($('#edit-start')?.value&&!start)||($('#edit-end')?.value&&!end))return toast('Use HH:MM for milking times.');
+  data.start=start;data.end=end;data.yields=!!$('#edit-yields')?.checked;
+  data.instructions=$('#edit-instructions')?.value.trim()||'';
+  store();navigate('session');break;
+ }
+
  case 'create-session':{
   const site=$('#new-session-site')?.value.trim()||'',herd=$('#new-session-herd')?.value.trim()||'';
   const id=$('#new-session-id')?.value.trim()||'';
@@ -924,7 +1023,7 @@ function doAction(action,button){
  case 'open-session':{
   const found=sessions.find(x=>x.recordId===button.dataset.recordId);
   if(!found)return toast('Session not found.');
-  data=found;activeRecordId=data.recordId;persistRegistry();navigate('session');break;
+  data=found;activeRecordId=data.recordId;persistRegistry();navigate(data.animalsHeld?'animal-records':'session');break;
  }
  case 'add-test':{
   const animal=animals().find(x=>x.uid===selectedUid);
@@ -983,7 +1082,7 @@ function doAction(action,button){
  }
  case 'camera-reset':CameraSettings.reset();break;
  case 'camera-zoom-preset':CameraSettings.setZoom(button.dataset.zoom);break;
- case 'edit-session':openModal('edit-session');break;
+ case 'edit-session':navigate('session-details');break;
  case 'save-session':{
   const rawStart=$('#edit-start').value,rawEnd=$('#edit-end').value;if(rawStart&&!normalTime(rawStart)||rawEnd&&!normalTime(rawEnd))return toast('Enter valid HH:MM times');
   data.org=$('#edit-org').value.trim()||data.org;data.site=$('#edit-site').value.trim()||data.site;data.herd=$('#edit-herd').value.trim()||data.herd;data.session=$('#edit-session-id').value.trim()||data.session;data.start=normalTime(rawStart);data.end=normalTime(rawEnd);data.yields=$('#edit-yields').checked;store();closeModal(false);render();break;}
@@ -1075,6 +1174,21 @@ document.addEventListener('input',e=>{
  if(!t)el.dataset.complete='0';
 });
 document.addEventListener('change',e=>{
+ if(e.target.dataset?.wizardSite&&wizardDraft){
+  wizardDraft.siteId=e.target.dataset.wizardSite;
+  wizardDraft.herd=wizardSite()?.herds?.[0]||'';
+  render();return;
+ }
+ if(e.target.dataset?.wizardHerd&&wizardDraft){
+  wizardDraft.herd=e.target.dataset.wizardHerd;
+  render();return;
+ }
+ if(['session-filter-status','session-filter-site','session-sort'].includes(e.target.id)){
+  if(e.target.id==='session-filter-status')sessionListStatus=e.target.value;
+  if(e.target.id==='session-filter-site')sessionListSite=e.target.value;
+  if(e.target.id==='session-sort')sessionListSort=e.target.value;
+  render();return;
+ }
  if(e.target.dataset?.pref){
   const key=e.target.dataset.pref,value=e.target.value;
   if(!Object.hasOwn(demoPrefs,key))return;
