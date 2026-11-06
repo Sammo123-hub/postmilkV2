@@ -324,7 +324,7 @@
 .journey-menu-heading{margin:20px 0 3px}
 .journey-grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .journey-grid-2>.input{min-width:0}
-.journey-card .input{width:100%;min-width:0}
+.journey-card .input{box-sizing:border-box;display:block;width:100%;min-width:0;height:48px;min-height:48px;padding:10px 12px;font-size:16px;line-height:normal}
 .journey-stepper{display:flex;gap:5px;align-items:center;color:#455a64;margin-bottom:3px;font:600 12px "DM Sans",Arial,sans-serif}
 .journey-stepper span{flex:1;padding:9px 4px;text-align:center;background:#edf3f7;border-radius:5px}
 .journey-stepper span.active{background:#2a7aaa;color:#fff}
@@ -385,13 +385,6 @@
 .menu-chevron{color:var(--blue);font-size:24px;line-height:1;flex:none}
 .menu-panel-footer{flex:none;border-top:1px solid var(--line);padding:10px 18px max(12px,env(safe-area-inset-bottom));background:#fff}
 .menu-panel-footer button{border:0;background:none;color:var(--navy);font:600 14px 'DM Sans',Arial,sans-serif;padding:10px 0;text-align:left}
-
-/* The date is a compact control, not a full-width text box. */
-.journey-card .input.wizard-date{
-  display:block;box-sizing:border-box;width:min(100%,220px);max-width:220px;
-  height:46px;min-height:46px;padding:8px 10px;
-  font-size:16px;line-height:1.25;
-}
 
 /* Native select text must be completely visible on iOS and Android. */
 #demo-site-type.input{

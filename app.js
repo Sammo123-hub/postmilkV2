@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.8.1';
+const VERSION='1.8.2';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -23,7 +23,7 @@ const uid=()=>globalThis.crypto?.randomUUID?.()||String(Date.now())+Math.random(
 const timeNow=()=>new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 const timestamp=()=>new Date().toISOString();
 const demo=[['00001','2'],['00002','4'],['00003','14.2'],['00004','11.8'],['00005','12.6']];
-function fresh(){return {org:'Example Meadow Farm',site:'North Test Parlour',herd:'900101',session:'S-2410-087',start:'',end:'',yields:true,phase:'setup',animals:[],testAssignments:{},boxes:[],boxesConfirmed:false,changeRevision:0,nmrMockSentAt:'',nmrMockSentRevision:-1,closedAt:'',labReceivedAt:'',startedAt:'',confirmedAt:''};}
+function fresh(){return {org:'Willowmere Farm',site:'Main Parlour',herd:'900101',session:'S-2410-087',start:'',end:'',yields:true,phase:'setup',animals:[],testAssignments:{},boxes:[],boxesConfirmed:false,changeRevision:0,nmrMockSentAt:'',nmrMockSentRevision:-1,closedAt:'',labReceivedAt:'',startedAt:'',confirmedAt:''};}
 function load(){
  let stored=null;
  try{
@@ -57,7 +57,10 @@ function load(){
 // independent sessions in a registry. Existing session is migrated once.
 function normaliseRecord(raw){
  const result={...fresh(),...raw};
- if(result.org==='Example Meadow Farm (fictional)')result.org='Example Meadow Farm';
+ if(['Example Meadow Farm','Example Meadow Farm (fictional)'].includes(result.org))result.org='Willowmere Farm';
+ if(result.site==='North Test Parlour')result.site='Main Parlour';
+ if(result.site==='West Test Parlour')result.site='West Field Parlour';
+ if(result.site==='Rotary Demo Parlour')result.site='Rotary Parlour';
  result.recordId=typeof result.recordId==='string'&&result.recordId?result.recordId:uid();
  const legacy=result.testAssignments&&typeof result.testAssignments==='object'&&!Array.isArray(result.testAssignments)?result.testAssignments:{};
  // Tests belong to sampled animals in this session, never to the whole herd.
@@ -88,19 +91,19 @@ function readSessionRegistry(previous){
  return [];
 }
 // All built-in account/contact/site details are deliberately fictitious.
-// ".test" domains and 01632 960xxx telephone numbers are reserved for examples.
+// ".test" domains and 01632 960xxx telephone numbers are reserved for testing.
 // These records are local-only; there is no live customer, NMR or login service.
 function defaultDemoAccount(){
  return {
-  farm:'Example Meadow Farm',accountId:'DEMO-00421',
-  user:'Alex Example',role:'Farmer',email:'alex@example.test',
-  contact:'Jamie Sample',phone:'01632 960321',invoiceEmail:'accounts@example.test',
-  invoiceAddress:'14 Fiction Lane, Exampleton, ZZ1 1ZZ',
+  farm:'Willowmere Farm',accountId:'DEMO-00421',
+  user:'Alex Carter',role:'Farmer',email:'alex@willowmere-farm.test',
+  contact:'Jamie Porter',phone:'01632 960321',invoiceEmail:'accounts@willowmere-farm.test',
+  invoiceAddress:'14 Willow Lane, Willmere, ZZ1 1ZZ',
   herds:['900101','900102','900103'],
   sites:[
-   {id:'demo-site-1',name:'North Test Parlour',address:'14 Fiction Lane, Exampleton, ZZ1 1ZZ',type:'Herringbone',rows:2,stalls:10,herds:['900101'],yields:true},
-   {id:'demo-site-2',name:'West Test Parlour',address:'3 Sample Road, Exampleton, ZZ1 1ZY',type:'Herringbone',rows:2,stalls:8,herds:['900102'],yields:true},
-   {id:'demo-site-3',name:'Rotary Demo Parlour',address:'8 Imaginary Way, Exampleton, ZZ1 2ZZ',type:'Rotary',rows:1,stalls:40,herds:['900103'],yields:false}
+   {id:'demo-site-1',name:'Main Parlour',address:'14 Willow Lane, Willmere, ZZ1 1ZZ',type:'Herringbone',rows:2,stalls:10,herds:['900101'],yields:true},
+   {id:'demo-site-2',name:'West Field Parlour',address:'3 Brook Road, Willmere, ZZ1 1ZY',type:'Herringbone',rows:2,stalls:8,herds:['900102'],yields:true},
+   {id:'demo-site-3',name:'Rotary Parlour',address:'8 Meadow Way, Willmere, ZZ1 2ZZ',type:'Rotary',rows:1,stalls:40,herds:['900103'],yields:false}
   ]
  };
 }
@@ -108,7 +111,30 @@ function readDemoAccount(){
  try{
   const stored=JSON.parse(localStorage.getItem(DEMO_ACCOUNT_STORAGE)||'null');
   if(stored&&Array.isArray(stored.sites)&&Array.isArray(stored.herds)){
-   if(stored.farm==='Example Meadow Farm (fictional)')stored.farm='Example Meadow Farm';
+   // Refresh unchanged legacy sample details, without touching the user's edits.
+   const seed=defaultDemoAccount();
+   const legacyFields={
+    farm:['Example Meadow Farm','Example Meadow Farm (fictional)'],
+    user:['Alex Example'],
+    email:['alex@example.test'],
+    contact:['Jamie Sample'],
+    invoiceEmail:['accounts@example.test'],
+    invoiceAddress:['14 Fiction Lane, Exampleton, ZZ1 1ZZ']
+   };
+   for(const [field,oldValues] of Object.entries(legacyFields)){
+    if(oldValues.includes(stored[field]))stored[field]=seed[field];
+   }
+   const legacySites={
+    'demo-site-1':{name:'North Test Parlour',address:'14 Fiction Lane, Exampleton, ZZ1 1ZZ'},
+    'demo-site-2':{name:'West Test Parlour',address:'3 Sample Road, Exampleton, ZZ1 1ZY'},
+    'demo-site-3':{name:'Rotary Demo Parlour',address:'8 Imaginary Way, Exampleton, ZZ1 2ZZ'}
+   };
+   for(const site of stored.sites){
+    const old=legacySites[site.id],current=seed.sites.find(s=>s.id===site.id);
+    if(!old||!current)continue;
+    if(site.name===old.name)site.name=current.name;
+    if(site.address===old.address)site.address=current.address;
+   }
    if(stored.role==='Farmer · DIY')stored.role='Farmer';
    if(stored.herds.length===5&&['900101','900102','900103','900104','900105'].every(h=>stored.herds.includes(h))){
     stored.herds=['900101','900102','900103'];
@@ -155,8 +181,8 @@ function signInScreen(){
  const content='<div class="signin-screen">'+
   '<div class="signin-brand"><div class="signin-logo" aria-label="Logo placeholder">LOGO</div><div class="signin-brand-words"><strong>Milk Sampling</strong><span>National Milk Records</span></div></div>'+
   '<p class="signin-intro">Sign in with your NMR account.</p>'+
-  '<div class="signin-form-row"><label>Email or username</label><div class="signin-text-field">alex@example.test</div></div>'+
-  '<div class="signin-form-row"><label>Password</label><div class="signin-text-field signin-password-field"><span id="demo-signin-password">••••••••••</span><button type="button" data-action="demo-password-toggle" id="demo-password-toggle" aria-label="Show example password" aria-pressed="false">SHOW</button></div></div>'+
+  '<div class="signin-form-row"><label>Email or username</label><div class="signin-text-field">'+safe(demoAccount.email)+'</div></div>'+
+  '<div class="signin-form-row"><label>Password</label><div class="signin-text-field signin-password-field"><span id="demo-signin-password">••••••••••</span><button type="button" data-action="demo-password-toggle" id="demo-password-toggle" aria-label="Show password" aria-pressed="false">SHOW</button></div></div>'+
   '<button type="button" class="signin-help" data-action="demo-signin-help">Help with sign-in or access <span aria-hidden="true">›</span></button>'+
   '<section class="signin-device"><div class="signin-device-header">THIS DEVICE</div><div class="signin-device-grid">'+
    '<div><span>DEVICE</span><strong>HH-0142</strong></div>'+
@@ -1069,10 +1095,10 @@ function doAction(action,button){
   const value=$('#demo-signin-password'),toggle=$('#demo-password-toggle');
   if(!value||!toggle)return;
   const visible=toggle.getAttribute('aria-pressed')!=='true';
-  value.textContent=visible?'example-only':'••••••••••';
+  value.textContent=visible?'demo-access':'••••••••••';
   toggle.textContent=visible?'HIDE':'SHOW';
   toggle.setAttribute('aria-pressed',String(visible));
-  toggle.setAttribute('aria-label',visible?'Hide example password':'Show example password');
+  toggle.setAttribute('aria-label',visible?'Hide password':'Show password');
   break;
  }
  case 'demo-signin-help':toast('Sign-in help is not connected in this demonstration.');break;

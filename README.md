@@ -24,8 +24,8 @@ This release expands the existing mobile-first post-milking workflow without rep
 
 ### Account and site entry (UI-48, UI-60, UI-61)
 - On a new browser installation, the **UI-48 signed-out screen** appears first. The displayed sample credentials are non-editable and there is no user-type selector or real authentication. It remains signed in locally until **Sign Out**.
-- **Account** shows a sample farmer, contact, invoice address, three example herd numbers and parlour sites. Site views support adding/editing a site, parlour type/configuration, herd linkage and yield requirement. A herd already linked to another site is not selectable. Contact edits persist locally.
-- Every built-in **name, farm, address, postcode, email and telephone** is invented. Examples use `@example.test`, reserved sample telephone number `01632 960321`, and deliberately fictional `ZZ` postal codes. The app does **not** ship the original mockup's contact details.
+- **Account** shows a sample farmer, contact, invoice address, three herd numbers and parlour sites. Site views support adding/editing a site, parlour type/configuration, herd linkage and yield requirement. A herd already linked to another site is not selectable. Contact edits persist locally.
+- Every built-in **name, farm, address, postcode, email and telephone** is invented. The built-in contacts use `@willowmere-farm.test`, reserved sample telephone number `01632 960321`, and deliberately fictional `ZZ` postal codes. The app does **not** ship the original mockup's contact details.
 
 ### Sessions (UI-50, UI-52, UI-54, UI-46)
 - **Sampling Sessions** now offers sort/filter by site and status and links to the multi-step **Create Session** flow.
