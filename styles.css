@@ -487,3 +487,42 @@ input[type="checkbox"],input[type="radio"]{accent-color:var(--brand-pink)}
  .body.signin-body{padding:0 14px 20px}
  .bottom.signin-footer{padding:0 14px max(13px,env(safe-area-inset-bottom))}
 }
+
+
+/* iPhone Safari: keep the native date picker visually aligned with the Milking select.
+   Date fields can otherwise retain an oversized intrinsic min-height/width. */
+.journey-card #wizard-date.input,
+.journey-card #wizard-milking.input{
+  box-sizing:border-box;
+  display:block;
+  width:100%;
+  min-width:0;
+  max-width:100%;
+  height:48px;
+  min-height:48px;
+  max-height:48px;
+  flex:0 0 48px;
+  margin:0;
+  padding:8px 12px;
+  border:2px solid var(--brand-navy);
+  border-radius:6px;
+  background:#fff;
+  color:var(--brand-navy);
+  font-family:'DM Sans',-apple-system,BlinkMacSystemFont,Arial,sans-serif;
+  font-size:16px;
+  font-weight:600;
+  line-height:normal;
+}
+.journey-card #wizard-date.input{
+  -webkit-appearance:none;
+  appearance:none;
+  text-align:left;
+}
+.journey-card #wizard-date::-webkit-date-and-time-value{
+  min-height:0;
+  text-align:left;
+}
+.journey-card #wizard-date::-webkit-datetime-edit{
+  padding:0;
+  line-height:normal;
+}
