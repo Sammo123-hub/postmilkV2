@@ -120,7 +120,7 @@ function saveDemoPrefs(){
 }
 let demoAccount=readDemoAccount(),demoPrefs=readDemoPrefs(),demoAuth=false;
 try{demoAuth=localStorage.getItem(DEMO_AUTH_STORAGE)==='signed-in'}catch{}
-let demoSiteId='demo-site-1',wizardStep=1,wizardDraft=null,sessionListStatus='all',sessionListSite='all',sessionListSort='newest',animalRecordsFrom='sessions',issueReturn='issues',swapQuery='';
+let demoSiteId='demo-site-1',wizardStep=1,wizardDraft=null,sessionListStatus='all',sessionListSite='all',sessionListSort='newest',animalRecordsFrom='sessions',issueReturn='issues',swapQuery='',detailUid='';
 function demoSite(){return demoAccount.sites.find(x=>x.id===demoSiteId)||demoAccount.sites[0]||null}
 function demoSiteDesc(s){return s.type==='Rotary'?'Rotary · '+s.stalls+' bails':'Herringbone · '+s.rows+' × '+s.stalls;}
 function sessionStatusLabel(rec){
@@ -532,7 +532,7 @@ function issuesScreen(){
   '<section class="journey-card"><div class="tinycap">NON-BLOCKING · '+missing.length+' NO SAMPLE</div><div class="journey-issues">'+(misses||'<p class="hint">No outstanding No Sample reasons.</p>')+'</div></section></div>',btn('SESSION MANAGEMENT','goto-session','secondary wide')];
 }
 function animalDetailScreen(){
- const a=animals().find(x=>x.uid===selectedUid);
+ const a=animals().find(x=>x.uid===detailUid);
  if(!a)return ['<div class="notice">This record is no longer on the sampling list.</div>',btn('ISSUES','goto-issues','outline wide')];
  const repeated=dupLines().has(a.line),duplicateCode=!!a.sample&&duplicateSampleIds().has(a.sample);
  const position=animals().indexOf(a)+1,closed=data.phase==='closed';
@@ -1014,19 +1014,19 @@ function doAction(action,button){
  case 'goto-sessions':navigate('sessions');break;
  case 'goto-data':if(!activeRecordId)return toast('Create or select a session first.');navigate('data');break;
  case 'goto-issues':navigate('issues');break;
- case 'issue-animal':selectedUid=button.dataset.uid;navigate('animal-detail');break;
+ case 'issue-animal':detailUid=button.dataset.uid;selectedUid=detailUid;navigate('animal-detail');break;
  case 'issue-no-sample':{
   const a=animals().find(x=>x.uid===button.dataset.uid);
   if(!a)return;selectedUid=a.uid;openModal('no-sample',a.uid);break;
  }
- case 'open-swap':if(data.phase==='closed')return toast('Sampling record is closed.');swapQuery='';openModal('swap-animal',selectedUid);break;
+ case 'open-swap':if(data.phase==='closed')return toast('Sampling record is closed.');swapQuery='';openModal('swap-animal',detailUid);break;
  case 'swap-pick':{
-  const chosen=button.dataset.line,aId=selectedUid;
+  const chosen=button.dataset.line,aId=detailUid;
   if(!applyAnimalSwap(aId,chosen))return toast('Unable to swap this animal.');
   closeModal(false);navigate('animal-detail');break;
  }
  case 'open-detail-yield':{
-  const a=animals().find(x=>x.uid===selectedUid);
+  const a=animals().find(x=>x.uid===detailUid);
   if(!a||data.phase==='closed')return;
   openModal('amend-yield',a.uid);break;
  }
@@ -1037,7 +1037,7 @@ function doAction(action,button){
   a.yield=value;store();closeModal(false);navigate('animal-detail');break;
  }
  case 'unlink-detail-sample':{
-  const a=animals().find(x=>x.uid===selectedUid);
+  const a=animals().find(x=>x.uid===detailUid);
   if(!a||!a.sample||data.phase==='closed')return;
   if(!confirm('Remove this sample link and its assigned tests?'))return;
   a.sample='';a.linkedAt='';a.linkedSequence=0;a.tests=[];
@@ -1045,7 +1045,7 @@ function doAction(action,button){
   store();navigate('animal-detail');break;
  }
  case 'detail-add-test':{
-  const a=animals().find(x=>x.uid===selectedUid);
+  const a=animals().find(x=>x.uid===detailUid);
   if(a?.sample)openModal('add-test',a.uid);break;
  }
 
@@ -1138,7 +1138,7 @@ function doAction(action,button){
   if(!animal?.sample||!testDraft)return toast('Sample link is not available.');
   for(const t of TEST_TYPES)assignSampledTest(animal.uid,t,testDraft.has(t));
   store();testDraft=null;closeModal(false);
-  if(page==='linking'||page==='animals')render();
+  if(page==='linking'||page==='animals'||page==='animal-detail')render();
   if(page==='linking'&&data.phase==='linking'&&waiting().length)startCamera();
   toast('Tests saved for '+animal.line);break;
  }
