@@ -91,7 +91,7 @@ const FastMatrix=(()=>{
   try{
    const width=video.videoWidth,height=video.videoHeight;
    if(width>0&&height>0){
-    const side=Math.floor(Math.min(width,height)*0.74);
+    const side=Math.floor(Math.min(width,height)*CameraSettings.cropFraction());
     const sx=Math.floor((width-side)/2),sy=Math.floor((height-side)/2);
     if(canvas.width!==side)canvas.width=side;
     if(canvas.height!==side)canvas.height=side;
