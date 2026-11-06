@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.7.0';
+const VERSION='1.8.0';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -23,7 +23,7 @@ const uid=()=>globalThis.crypto?.randomUUID?.()||String(Date.now())+Math.random(
 const timeNow=()=>new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 const timestamp=()=>new Date().toISOString();
 const demo=[['00001','2'],['00002','4'],['00003','14.2'],['00004','11.8'],['00005','12.6']];
-function fresh(){return {org:'Example Meadow Farm (fictional)',site:'North Test Parlour',herd:'900101',session:'S-2410-087',start:'',end:'',yields:true,phase:'setup',animals:[],testAssignments:{},boxes:[],boxesConfirmed:false,changeRevision:0,nmrMockSentAt:'',nmrMockSentRevision:-1,closedAt:'',labReceivedAt:'',startedAt:'',confirmedAt:''};}
+function fresh(){return {org:'Example Meadow Farm',site:'North Test Parlour',herd:'900101',session:'S-2410-087',start:'',end:'',yields:true,phase:'setup',animals:[],testAssignments:{},boxes:[],boxesConfirmed:false,changeRevision:0,nmrMockSentAt:'',nmrMockSentRevision:-1,closedAt:'',labReceivedAt:'',startedAt:'',confirmedAt:''};}
 function load(){
  let stored=null;
  try{
@@ -57,6 +57,7 @@ function load(){
 // independent sessions in a registry. Existing session is migrated once.
 function normaliseRecord(raw){
  const result={...fresh(),...raw};
+ if(result.org==='Example Meadow Farm (fictional)')result.org='Example Meadow Farm';
  result.recordId=typeof result.recordId==='string'&&result.recordId?result.recordId:uid();
  const legacy=result.testAssignments&&typeof result.testAssignments==='object'&&!Array.isArray(result.testAssignments)?result.testAssignments:{};
  // Tests belong to sampled animals in this session, never to the whole herd.
@@ -91,22 +92,31 @@ function readSessionRegistry(previous){
 // These records are local-only; there is no live customer, NMR or login service.
 function defaultDemoAccount(){
  return {
-  farm:'Example Meadow Farm (fictional)',accountId:'DEMO-00421',
-  user:'Alex Example',role:'Farmer · DIY',email:'alex@example.test',
+  farm:'Example Meadow Farm',accountId:'DEMO-00421',
+  user:'Alex Example',role:'Farmer',email:'alex@example.test',
   contact:'Jamie Sample',phone:'01632 960321',invoiceEmail:'accounts@example.test',
   invoiceAddress:'14 Fiction Lane, Exampleton, ZZ1 1ZZ',
-  herds:['900101','900102','900103','900104','900105'],
+  herds:['900101','900102','900103'],
   sites:[
    {id:'demo-site-1',name:'North Test Parlour',address:'14 Fiction Lane, Exampleton, ZZ1 1ZZ',type:'Herringbone',rows:2,stalls:10,herds:['900101'],yields:true},
    {id:'demo-site-2',name:'West Test Parlour',address:'3 Sample Road, Exampleton, ZZ1 1ZY',type:'Herringbone',rows:2,stalls:8,herds:['900102'],yields:true},
-   {id:'demo-site-3',name:'Rotary Demo Parlour',address:'8 Imaginary Way, Exampleton, ZZ1 2ZZ',type:'Rotary',rows:1,stalls:40,herds:['900103','900104'],yields:false}
+   {id:'demo-site-3',name:'Rotary Demo Parlour',address:'8 Imaginary Way, Exampleton, ZZ1 2ZZ',type:'Rotary',rows:1,stalls:40,herds:['900103'],yields:false}
   ]
  };
 }
 function readDemoAccount(){
  try{
   const stored=JSON.parse(localStorage.getItem(DEMO_ACCOUNT_STORAGE)||'null');
-  if(stored&&Array.isArray(stored.sites)&&Array.isArray(stored.herds))return stored;
+  if(stored&&Array.isArray(stored.sites)&&Array.isArray(stored.herds)){
+   if(stored.farm==='Example Meadow Farm (fictional)')stored.farm='Example Meadow Farm';
+   if(stored.role==='Farmer · DIY')stored.role='Farmer';
+   if(stored.herds.length===5&&['900101','900102','900103','900104','900105'].every(h=>stored.herds.includes(h))){
+    stored.herds=['900101','900102','900103'];
+    for(const site of stored.sites)if(Array.isArray(site.herds))site.herds=site.herds.filter(h=>stored.herds.includes(h));
+   }
+   try{localStorage.setItem(DEMO_ACCOUNT_STORAGE,JSON.stringify(stored));}catch{}
+   return stored;
+  }
  }catch{}
  return defaultDemoAccount();
 }
@@ -123,6 +133,7 @@ let demoAccount=readDemoAccount(),demoPrefs=readDemoPrefs(),demoAuth=false;
 try{demoAuth=localStorage.getItem(DEMO_AUTH_STORAGE)==='signed-in'}catch{}
 let demoSiteId='demo-site-1',wizardStep=1,wizardDraft=null,sessionListStatus='all',sessionListSite='all',sessionListSort='newest',animalRecordsFrom='sessions',issueReturn='issues',swapQuery='',detailUid='',animalListQuery='';
 function demoSite(){return demoAccount.sites.find(x=>x.id===demoSiteId)||demoAccount.sites[0]||null}
+function recordYields(rec=data){const site=demoAccount.sites.find(x=>x.id===rec.siteId)||demoAccount.sites.find(x=>x.name===rec.site);return site?!!site.yields:!!rec.yields;}
 function demoSiteDesc(s){return s.type==='Rotary'?'Rotary · '+s.stalls+' bails':'Herringbone · '+s.rows+' × '+s.stalls;}
 function sessionStatusLabel(rec){
  if(rec.phase==='closed')return rec.labReceivedAt?'Closed · lab receipt simulated':'Closed · local';
@@ -132,15 +143,15 @@ function sessionStatusLabel(rec){
 function shortDate(date){if(!date)return 'Date not set';const d=new Date(date+'T12:00:00');return isNaN(d.getTime())?'Date not set':d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
 function accountScreen(){
  const sites=demoAccount.sites.map(site=>'<button class="journey-list-row" data-action="open-demo-site" data-site-id="'+safe(site.id)+'"><strong>'+safe(site.name)+'</strong><span>'+safe(demoSiteDesc(site))+' · Herd '+safe(site.herds.join(', '))+'</span><b>›</b></button>').join('');
- return ['<div class="journey-page"><div class="tinycap">DEMO ACCOUNT · NOT CONNECTED TO NMR</div><h2>'+safe(demoAccount.farm)+'</h2><section class="journey-card"><div class="tinycap">SIGNED IN USER (SIMULATED)</div><strong>'+safe(demoAccount.user)+'</strong><span>'+safe(demoAccount.role)+'</span><span>'+safe(demoAccount.email)+'</span></section><section class="journey-card"><div class="journey-card-head"><strong>INVOICING CONTACT</strong>'+btn('EDIT','edit-demo-contact','outline')+'</div><p>'+safe(demoAccount.contact)+'</p><p>'+safe(demoAccount.phone)+'</p><p>'+safe(demoAccount.invoiceEmail)+'</p><p>'+safe(demoAccount.invoiceAddress)+'</p></section><section class="journey-card"><div class="journey-card-head"><strong>PARLOUR SITES · '+demoAccount.sites.length+'</strong>'+btn('+ ADD SITE','add-demo-site','outline')+'</div>'+sites+'</section><section class="journey-card"><div class="tinycap">DEMO HERDS · '+demoAccount.herds.length+'</div>'+demoAccount.herds.map(h=>'<div class="journey-plain-row">'+safe(h)+'</div>').join('')+'</section><p class="hint">All names, addresses, phone numbers and emails here are fictional demonstration data.</p></div>',btn('SAMPLING SESSIONS','goto-sessions','secondary wide')];
+ return ['<div class="journey-page"><div class="tinycap">ACCOUNT</div><h2>'+safe(demoAccount.farm)+'</h2><section class="journey-card"><div class="tinycap">SIGNED IN USER</div><strong>'+safe(demoAccount.user)+'</strong><span>'+safe(demoAccount.role)+'</span><span>'+safe(demoAccount.email)+'</span></section><section class="journey-card"><div class="journey-card-head"><strong>INVOICING CONTACT</strong>'+btn('EDIT','edit-demo-contact','outline')+'</div><p>'+safe(demoAccount.contact)+'</p><p>'+safe(demoAccount.phone)+'</p><p>'+safe(demoAccount.invoiceEmail)+'</p><p>'+safe(demoAccount.invoiceAddress)+'</p></section><section class="journey-card"><div class="journey-card-head"><strong>PARLOUR SITES · '+demoAccount.sites.length+'</strong>'+btn('+ ADD SITE','add-demo-site','outline')+'</div>'+sites+'</section><section class="journey-card"><div class="tinycap">HERDS · '+demoAccount.herds.length+'</div>'+demoAccount.herds.map(h=>'<div class="journey-plain-row">'+safe(h)+'</div>').join('')+'</section></div>',btn('SAMPLING SESSIONS','goto-sessions','secondary wide')];
 }
 function siteScreen(){
  const site=demoSite();
  if(!site)return ['<div class="notice">No site found.</div>',btn('ACCOUNT','goto-account','outline')];
- return ['<div class="journey-page"><div class="tinycap">DIY SITE · LOCAL DEMO</div><h2>'+safe(site.name)+'</h2><section class="journey-card"><div class="tinycap">SITE</div><strong>'+safe(site.name)+'</strong><p>'+safe(site.address)+'</p></section><section class="journey-card"><div class="tinycap">PARLOUR</div><p>'+safe(demoSiteDesc(site))+'</p><div class="tinycap">LINKED HERDS</div><p>'+safe(site.herds.join(', ')||'None')+'</p><div class="tinycap">YIELDS</div><p>'+ (site.yields?'Record yields':'Not required')+'</p></section><p class="hint">Fictional sites and herds for prototype testing; these are not NMR master records.</p></div>',btn('EDIT SITE','edit-demo-site','secondary wide')+btn('ACCOUNT','goto-account','outline wide')];
+ return ['<div class="journey-page"><div class="tinycap">SITE</div><h2>'+safe(site.name)+'</h2><section class="journey-card"><div class="tinycap">SITE</div><strong>'+safe(site.name)+'</strong><p>'+safe(site.address)+'</p></section><section class="journey-card"><div class="tinycap">PARLOUR</div><p>'+safe(demoSiteDesc(site))+'</p><div class="tinycap">LINKED HERDS</div><p>'+safe(site.herds.join(', ')||'None')+'</p><div class="tinycap">YIELDS</div><p>'+ (site.yields?'Record yields':'Not required')+'</p></section></div>',btn('EDIT SITE','edit-demo-site','secondary wide')+btn('ACCOUNT','goto-account','outline wide')];
 }
 function signInScreen(){
- return ['<div class="journey-page"><div class="tinycap">DEMONSTRATION ACCESS · NO LIVE AUTHORISATION</div><h2>Milk Sampling</h2><p class="hint">Use the fictional account to explore the complete end-to-end workflow. No password, customer account or real NMR service is used.</p><section class="journey-card"><label class="field-label">DEMO USER</label><strong>'+safe(demoAccount.user)+'</strong><p>'+safe(demoAccount.email)+'</p><label class="field-label">ROLE</label><select id="demo-signin-role" class="input"><option value="farmer">Farmer · DIY</option><option value="sampler">Sampling operator</option></select><div class="notice">Device PM-DEMO-0142 · Authorisation simulated locally</div></section></div>',btn('ENTER DEMO APP','demo-sign-in','primary wide')];
+ return ['<div class="journey-page"><div class="tinycap">DEMO ACCESS</div><h2>Milk Sampling</h2><p class="hint">Explore the sampling process with a sample account. NMR is not connected.</p><section class="journey-card"><label class="field-label">DEMO USER</label><strong>'+safe(demoAccount.user)+'</strong><p>'+safe(demoAccount.email)+'</p><label class="field-label">ROLE</label><select id="demo-signin-role" class="input"><option value="farmer">Farmer</option><option value="sampler">Sampling operator</option></select><div class="notice">Device PM-DEMO-0142 · Authorisation simulated locally</div></section></div>',btn('ENTER DEMO APP','demo-sign-in','primary wide')];
 }
 
 function startDemoWizard(){
@@ -275,7 +286,7 @@ const btn=(label,act,cls='',attrs='')=>`<button class="btn ${cls}" type="button"
 function normalTime(value){let s=String(value||'').trim();if(!s)return '';if(/^\d{4}$/.test(s))s=s.slice(0,2)+':'+s.slice(2);const match=s.match(/^(\d{1,2}):(\d{2})$/);if(!match)return '';const h=+match[1],m=+match[2];return h<=23&&m<=59?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`:'';}
 function timeInput(id,value){return `<input class="time-input" id="${id}" value="${safe(value)}" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocorrect="off" autocapitalize="off" autocomplete="off" spellcheck="false" aria-label="${id.includes('start')?'Milking start':'Milking end'} time" data-complete="${normalTime(value)?'1':'0'}">`;}
 function header(){
- const names={signin:'Sign in',account:'DIY account',site:'DIY site','new-session-flow':'Create session',
+ const names={signin:'Sign in',account:'Account',site:'Site','new-session-flow':'Create session',
  'session-created':'Session created','animal-records':'Animal records','session-details':'Session details',
  settings:'Settings','sampling-settings':'Sampling settings','data-settings':'Data settings',about:'About',
  sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',
@@ -344,7 +355,7 @@ function sessionsScreen(){
    '</button>';
  }).join('');
  return ['<div class="sessions-index"><div class="tinycap">SAMPLING SESSIONS · '+sessions.length+'</div>'+
-  '<p class="hint">Select a session, review animal records if available, or create an ad hoc session. All sessions here are local demos.</p>'+controls+
+  '<p class="hint">Select a session, review animal records if available, or create an ad hoc session. Sessions are saved on this device.</p>'+controls+
   (list||'<div class="notice">No sampling sessions yet.</div>')+
   '<button type="button" class="btn primary wide" data-action="new-session">+ NEW SESSION</button></div>',''];
 }
@@ -574,7 +585,7 @@ function swapPickerMarkup(){
   const already=animals().some(x=>x!==a&&x.line===h.line);
   return '<button type="button" class="journey-issue-row" data-action="swap-pick" data-line="'+safe(h.line)+'"><strong>'+safe(h.line)+'</strong><span>'+(already?'Already in sampling list · may create duplicate':'Available herd animal')+'</span><b>SELECT</b></button>';
  }).join('');
- return '<h2>Swap animal</h2><p class="hint">Change only the animal on this sampling record. Existing Sample ID, yield and tests stay with this record. You can select an animal already sampled; if this creates another duplicate, it will appear in Issues.</p><label class="field-label">SEARCH DEMO HERD BY LINE NUMBER</label><input id="swap-search" class="input" type="search" value="'+safe(swapQuery)+'" placeholder="Search line number"><div class="journey-issues" id="swap-results">'+(rows||'<p class="hint">No matching herd animals.</p>')+'</div>'+btn('CANCEL','modal-close','outline wide');
+ return '<h2>Swap animal</h2><p class="hint">Change only the animal on this sampling record. Existing Sample ID, yield and tests stay with this record. You can select an animal already sampled; if this creates another duplicate, it will appear in Issues.</p><label class="field-label">SEARCH HERD BY LINE NUMBER</label><input id="swap-search" class="input" type="search" value="'+safe(swapQuery)+'" placeholder="Search line number"><div class="journey-issues" id="swap-results">'+(rows||'<p class="hint">No matching herd animals.</p>')+'</div>'+btn('CANCEL','modal-close','outline wide');
 }
 function applyAnimalSwap(animalUid,line){
  const a=animals().find(x=>x.uid===animalUid);
@@ -914,19 +925,19 @@ function openModal(name,which='',options={}){
  if(name==='amend-yield'&&animal)html='<h2>Amend milk yield</h2><div class="tinycap">ANIMAL '+safe(animal.line)+'</div><div class="tinycap">SAMPLE '+safe(animal.sample||'—')+'</div>'+
   '<label class="field-label">YIELD (KG)</label><input id="amend-yield-value" class="input" inputmode="decimal" type="number" min="0" step="0.1" value="'+safe(animal.yield||'')+'">'+
   '<div class="buttons">'+btn('CANCEL','modal-close','outline')+btn('SAVE','save-detail-yield','secondary')+'</div>';
- if(name==='edit-demo-contact')html='<h2>Fictional invoicing contact</h2>'+
+ if(name==='edit-demo-contact')html='<h2>Invoicing contact</h2>'+
   '<label class="field-label">NAME</label><input class="input" id="demo-contact-name" value="'+safe(demoAccount.contact)+'">'+
   '<label class="field-label">PHONE</label><input class="input" id="demo-contact-phone" value="'+safe(demoAccount.phone)+'">'+
   '<label class="field-label">EMAIL</label><input class="input" id="demo-contact-email" value="'+safe(demoAccount.invoiceEmail)+'">'+
   '<label class="field-label">ADDRESS</label><input class="input" id="demo-contact-address" value="'+safe(demoAccount.invoiceAddress)+'">'+
-  '<p class="hint">Only fictional sample details should be used in this prototype.</p>'+
+  '<p class="hint">Changes are saved on this device.</p>'+
   '<div class="buttons">'+btn('CANCEL','modal-close','outline')+btn('SAVE','save-demo-contact','secondary')+'</div>';
  if(name==='demo-site-form'){
   const editing=!!which,site=editing?demoSite():{name:'',address:'',type:'Herringbone',rows:2,stalls:10,herds:[],yields:true};
   const free=demoAccount.herds.filter(h=>!demoAccount.sites.some(q=>q.id!==(editing?site.id:null)&&q.herds.includes(h)));
   html='<h2>'+(editing?'Edit site':'Add site')+'</h2>'+
    '<label class="field-label">SITE NAME</label><input class="input" id="demo-site-name" value="'+safe(site.name)+'">'+
-   '<label class="field-label">ADDRESS (FICTIONAL)</label><input class="input" id="demo-site-address" value="'+safe(site.address)+'">'+
+   '<label class="field-label">ADDRESS</label><input class="input" id="demo-site-address" value="'+safe(site.address)+'">'+
    '<label class="field-label">PARLOUR TYPE</label><select class="input" id="demo-site-type">'+['Herringbone','Rotary','Other'].map(t=>'<option '+(site.type===t?'selected':'')+'>'+t+'</option>').join('')+'</select>'+
    '<label class="field-label">ROWS / ROTARY SETS</label><input class="input" id="demo-site-rows" type="number" min="1" max="8" value="'+site.rows+'">'+
    '<label class="field-label">STALLS PER ROW / BAILS</label><input class="input" id="demo-site-stalls" type="number" min="1" max="100" value="'+site.stalls+'">'+
