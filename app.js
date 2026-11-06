@@ -440,7 +440,7 @@ function bulkGenerateSampleLinks(count){
  for(let i=0;i<selected.length;i++){
   const a=selected[i];
   a.sample=ids[i];a.linkedSequence=++sequence;a.linkedAt=now;
-  if(!a.yield)a.yield=(11+(Number(ids[i])%170)/10).toFixed(1);
+  if(recordYields()&&!a.yield)a.yield=(11+(Number(ids[i])%170)/10).toFixed(1);
   a.noSampleReason='';
  }
  if(['setup','adding','check','confirmed'].includes(data.phase))data.phase='linking';
@@ -479,10 +479,10 @@ function dataManagementScreen(){
   '<p class="hint">'+available.length+' of '+HerdDemo.HERD.length+' herd animals not yet on this session list. Adds them in line-number order, ready to link with sample pots.</p>'+
   '<div class="data-hub-controls"><input class="input" id="data-add-count" type="number" min="1" max="'+available.length+'" step="1" inputmode="numeric" value="'+Math.min(5,available.length)+'" '+(available.length&&!readOnly?'':'disabled')+' aria-label="Number of herd animals to add">'+
   btn('ADD ANIMALS','data-add-animals','secondary',available.length&&!readOnly?'':'disabled')+'</div>'+
-  '<label class="field-label" for="data-link-count">GENERATE LINKED SAMPLE IDS &amp; YIELDS</label>'+
-  '<p class="hint">'+unlinked.length+' awaiting animals. Gives the next animals unique nine-digit test Sample IDs and fills in any missing yield. This makes them available for Add Tests.</p>'+
+  '<label class="field-label" for="data-link-count">GENERATE LINKED SAMPLE IDS'+(recordYields()?' &amp; YIELDS':'')+'</label>'+
+  '<p class="hint">'+unlinked.length+' awaiting animals. Gives the next animals unique nine-digit test Sample IDs'+(recordYields()?' and fills in missing yields':'')+'. This makes them available for Add Tests.</p>'+
   '<div class="data-hub-controls"><input class="input" id="data-link-count" type="number" min="1" max="'+unlinked.length+'" step="1" inputmode="numeric" value="'+Math.min(5,unlinked.length)+'" '+(unlinked.length&&!readOnly?'':'disabled')+' aria-label="Number of awaiting animals to link">'+
-  btn('GENERATE LINKS & YIELDS','data-auto-link','secondary',unlinked.length&&!readOnly?'':'disabled')+'</div></section>';
+  btn(recordYields()?'GENERATE LINKS & YIELDS':'GENERATE LINKS','data-auto-link','secondary',unlinked.length&&!readOnly?'':'disabled')+'</div></section>';
  return ['<div class="data-hub"><div class="tinycap">ACTIVE SESSION · '+safe(data.session)+'</div>'+
   '<p class="hint">Track data coming into and leaving this device, and prepare realistic test sessions.</p>'+
   summary+out+lab+inbound+files+test+'</div>',btn('BACK TO SESSION','goto-session','outline wide')];
@@ -512,7 +512,7 @@ function sessionScreen(){
  stage(4,'Add tests',addTestsState,addTestsContent,!!sampledCount&&data.phase!=='closed')+
  stage(5,'Sample boxes',data.boxesConfirmed?'Complete':boxesReady?'Outstanding':'Locked',boxesReady?btn('SCAN SAMPLE BOXES','goto-boxes','secondary wide'):'');
  const labStage=data.phase==='closed'?stage(6,'Laboratory receipt',testsLocked()?'Received · simulated':'Not recorded',testsLocked()?'<div class="notice ok">Received '+safe(formatExportTime(data.labReceivedAt))+' (simulation only). Test assignments are locked.</div>':'<p class="hint">Demo-only laboratory arrival. No actual external connection.</p>'+btn('SIMULATE LAB RECEIPT','ask-lab-receipt','outline wide')):'';
- const html=`<div class="tinycap">SESSION STATUS</div><div class="heading">${status}</div><section class="card"><div class="details-head"><span class="tinycap">SESSION DETAILS</span>${data.phase!=='closed'?btn('EDIT','edit-session','secondary smallbtn'):'<span>READ ONLY</span>'}</div><div class="details-grid">${detail('ORGANISATION',data.org)}${detail('SITE · ST-120455',data.site)}${detail('HERD',data.herd)}${detail('METHOD','Post-milking')}${detail('MILKING',`${data.start||'—'} – ${data.end||'—'}`)}${detail('SESSION ID',data.session)}${detail('YIELDS',data.yields?'Required':'Not required')}${detail('DEVICES','1 device')}</div></section>${stages}${labStage}`;
+ const html=`<div class="tinycap">SESSION STATUS</div><div class="heading">${status}</div><section class="card"><div class="details-head"><span class="tinycap">SESSION DETAILS</span>${data.phase!=='closed'?btn('EDIT','edit-session','secondary smallbtn'):'<span>READ ONLY</span>'}</div><div class="details-grid">${detail('ORGANISATION',data.org)}${detail('SITE · ST-120455',data.site)}${detail('HERD',data.herd)}${detail('METHOD','Post-milking')}${detail('MILKING',`${data.start||'—'} – ${data.end||'—'}`)}${detail('SESSION ID',data.session)}${detail('YIELDS',recordYields()?'Required':'Not required')}${detail('DEVICES','1 device')}</div></section>${stages}${labStage}`;
  const foot=data.phase==='closed'?'':btn('CLOSE SAMPLING SESSION','ask-close','primary wide',data.phase==='confirmed'&&data.boxesConfirmed&&!blockingIssues()?'':'disabled');
  return [html,foot];
 }
@@ -523,7 +523,7 @@ function animalCard(a,options={}){
  const duplicate=dupLines().has(a.line);
  const state=green?'LINKED ✓':not?'NO SAMPLE':(options.isNext?'NEXT':'AWAITING')+(duplicate?' · DUPLICATE':'');
  const number=green&&options.latest?'':String(idx);
- return `<button class="animal-card ${green?'green':not?'no-sample':''} ${options.isNext?'next':''} ${options.latest?'just-linked':''}" type="button" data-action="animal" data-uid="${safe(a.uid)}"><span class="pos">${number}</span><span class="line">${safe(a.line)}</span>${green?`<span class="sample-id">${safe(a.sample)}</span>`:''}${a.yield?`<span class="yield">${safe(a.yield)} kg</span>`:''}<span class="right-tag">${state}</span></button>`;
+ return `<button class="animal-card ${green?'green':not?'no-sample':''} ${options.isNext?'next':''} ${options.latest?'just-linked':''}" type="button" data-action="animal" data-uid="${safe(a.uid)}"><span class="pos">${number}</span><span class="line">${safe(a.line)}</span>${green?`<span class="sample-id">${safe(a.sample)}</span>`:''}${recordYields()&&a.yield?`<span class="yield">${safe(a.yield)} kg</span>`:''}<span class="right-tag">${state}</span></button>`;
 }
 function cameraMarkup(){
  const panel=`<div class="camera-panel" id="camera-panel"><div class="camera-placeholder" id="camera-placeholder">Camera starting…<br>Point at the next sample pot</div><div class="camera-video" id="qr-reader"></div><div class="camera-hud"><div class="camera-title"><span>SCAN NEXT ${page==='boxes'?'BOX':'POT'}</span><span class="camera-badge" id="camera-badge">CAMERA OFF</span></div><div class="finder"></div></div><div class="scan-affirm" id="scan-affirm" hidden>✓ LINKED</div>${page==='linking'?'<div class="scan-status" id="scan-status" role="status" hidden></div><button class="btn secondary camera-retry" id="camera-retry" type="button" data-action="retry-camera" hidden>RETRY CAMERA</button>':''}</div>`;
@@ -574,7 +574,7 @@ function animalDetailScreen(){
   '<section class="journey-card"><div class="tinycap">ANIMAL</div><strong>'+safe(a.line)+'</strong>'+(a.previousLine?'<span>Changed from '+safe(a.previousLine)+'</span>':'')+'<div class="tinycap">SAMPLING</div><div class="journey-plain-row">Method <strong>Post-milking</strong></div><div class="journey-plain-row">Device <strong>PM-DEMO-0142</strong></div><div class="journey-plain-row">List position <strong>'+position+'</strong></div>'+
   (closed?'':btn('SWAP ANIMAL','open-swap','outline wide'))+'</section>'+
   '<section class="journey-card"><div class="tinycap">SAMPLE</div><div class="journey-plain-row">Status <strong>'+(a.sample?'Linked':a.noSampleReason?'No sample':'Awaiting')+'</strong></div><div class="journey-plain-row">Sample ID <strong>'+safe(a.sample||'—')+'</strong></div><div class="journey-plain-row">Yield <strong>'+safe(a.yield?a.yield+' kg':'—')+'</strong></div><div class="journey-plain-row">Tests <strong>'+safe(animalTests(a).join(', ')||'—')+'</strong></div>'+
-  (closed?'':btn('AMEND YIELD','open-detail-yield','outline wide')+(a.sample?btn('UNLINK SAMPLE','unlink-detail-sample','outline wide'):btn('LINK SAMPLE','detail-link-sample','secondary wide')))+
+  (closed?'':(recordYields()?btn('AMEND YIELD','open-detail-yield','outline wide'):'')+(a.sample?btn('UNLINK SAMPLE','unlink-detail-sample','outline wide'):btn('LINK SAMPLE','detail-link-sample','secondary wide')))+
   (a.sample?btn('ADD / CHANGE TESTS','detail-add-test','secondary wide'):'')+'</section></div>',btn('BACK TO ISSUES','goto-issues','outline wide')];
 }
 function swapPickerMarkup(){
@@ -895,6 +895,7 @@ async function navigate(to,{autoCamera=false}={}){
  if(autoCamera&&((to==='linking'&&data.phase==='linking'&&waiting().length)||to==='boxes'))startCamera();
 }
 function openModal(name,which='',options={}){
+ if(name==='herd-yield'&&!recordYields())name='herd-picker';
  clearTimeout(captureCompletionTimer);captureCompletionTimer=null;captureCompleting=false;
  stopCamera();modal=name;selectedUid=which||'';
  const animal=animals().find(a=>a.uid===selectedUid);
@@ -1052,9 +1053,18 @@ function doAction(action,button){
   const herds=$$('[data-site-herd]:checked').map(el=>el.dataset.siteHerd);
   if(!herds.length)return toast('Link at least one available herd.');
   const existing=modal==='demo-site-form'&&selectedUid?demoSite():null;
+  const previousName=existing?.name;
   const site={id:existing?.id||uid(),name,address,type:$('#demo-site-type')?.value||'Other',rows,stalls,herds,yields:!!$('#demo-site-yields')?.checked};
   if(existing)Object.assign(existing,site);else demoAccount.sites.push(site);
-  demoSiteId=site.id;saveDemoAccount();closeModal(false);navigate('site');break;
+  for(const rec of sessions){
+   if(rec.phase==='closed'||!(rec.siteId===site.id||(previousName&&rec.site===previousName)))continue;
+   rec.siteId=site.id;rec.site=site.name;rec.yields=site.yields;
+   if(!site.yields)for(const a of rec.animals||[])a.yield='';
+   rec.changeRevision=(Number(rec.changeRevision)||0)+1;
+  }
+  demoSiteId=site.id;saveDemoAccount();
+  if(activeRecordId)data=sessions.find(x=>x.recordId===activeRecordId)||data;
+  persistRegistry();closeModal(false);navigate('site');break;
  }
  case 'goto-sessions':navigate('sessions');break;
  case 'goto-data':if(!activeRecordId)return toast('Create or select a session first.');navigate('data');break;
@@ -1072,12 +1082,12 @@ function doAction(action,button){
  }
  case 'open-detail-yield':{
   const a=animals().find(x=>x.uid===detailUid);
-  if(!a||data.phase==='closed')return;
+  if(!a||data.phase==='closed'||!recordYields())return;
   openModal('amend-yield',a.uid);break;
  }
  case 'save-detail-yield':{
   const a=animals().find(x=>x.uid===selectedUid),value=$('#amend-yield-value')?.value.trim()||'';
-  if(!a||data.phase==='closed')return;
+  if(!a||data.phase==='closed'||!recordYields())return;
   if(value!==''&&(!Number.isFinite(+value)||Number(value)<0))return toast('Enter a non-negative yield.');
   a.yield=value;store();closeModal(false);navigate('animal-detail');break;
  }
@@ -1111,7 +1121,7 @@ function doAction(action,button){
   const count=readTestCount('data-link-count',waiting().length);
   if(count===null)return toast('Enter a whole number no greater than the awaiting count.');
   if(!bulkGenerateSampleLinks(count))return toast('Could not generate sample links.');
-  render();toast('Linked '+count+' test samples and added missing yields.');break;
+  render();toast('Linked '+count+' test samples'+(recordYields()?' and added missing yields':'')+'.');break;
  }
  case 'goto-tests':if(!activeRecordId)return toast('Create or select a session first');currentTest='JOHNES';testFilter='all';testQuery='';resetTestDraft();navigate('tests');break;
  case 'new-session':startDemoWizard();break;
