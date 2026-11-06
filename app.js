@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.8.9';
+const VERSION='1.8.10';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -892,7 +892,7 @@ async function startCamera(){
   await stopping.catch(()=>{});
   await loadLibrary();
   if(generation!==cameraGeneration||!reader.isConnected)return;
-  if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)throw Error('Camera requires HTTPS and permission in Safari.');
+  if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)throw Error('Camera requires HTTPS and camera permission in this browser.');
   // Same exact tested options: QR_CODE = numeric zero, NEVER truthiness-filter it.
   // Sample boxes may have standard 1D barcodes (e.g. Code 128/EAN/UPC/ITF)
   // or 2D symbols. Omit formatsToSupport to enable the library's full set.
@@ -905,7 +905,7 @@ async function startCamera(){
   reader.replaceChildren();
   opened=new Html5Qrcode(readerId,scannerOptions);
   scanner=opened;scannerMode=page;
-  scanStatus('Asking iPhone for rear camera…');
+  scanStatus('Requesting rear camera…');
   await opened.start(CameraSettings.cameraConstraint(),isBoxScan?{fps:10}:CameraSettings.scanConfig(),text=>{
    if(generation===cameraGeneration&&scanner===opened)onQrDecoded(text);
   },error=>{
@@ -1464,6 +1464,7 @@ document.addEventListener('change',e=>{
   if(save)save.textContent='SAVE '+currentTest+' · '+testManagerDraft.size+' ANIMALS';
   return;
  }
+ if(e.target.id==='camera-scan-mode'){CameraSettings.chooseMode(e.target.value);return;}
  if(e.target.id==='camera-device'){CameraSettings.chooseCamera(e.target.value);return;}
  if(e.target.id==='camera-code-format'){CameraSettings.chooseFormat(e.target.value);return;}
  if(e.target.id==='camera-decoder-engine'){CameraSettings.chooseEngine(e.target.value);return;}
