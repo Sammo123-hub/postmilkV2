@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.8.8';
+const VERSION='1.8.9';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -157,7 +157,7 @@ function saveDemoPrefs(){
 }
 let demoAccount=readDemoAccount(),demoPrefs=readDemoPrefs(),demoAuth=false;
 try{demoAuth=localStorage.getItem(DEMO_AUTH_STORAGE)==='signed-in'}catch{}
-let demoSiteId='demo-site-1',wizardStep=1,wizardDraft=null,sessionListStatus='all',sessionListSite='all',sessionListSort='newest',animalRecordsFrom='sessions',issueReturn='issues',swapQuery='',detailUid='',animalListQuery='';
+let demoSiteId='demo-site-1',wizardStep=1,wizardDraft=null,sessionListStatus='all',sessionListSite='all',sessionListSort='newest',sessionListCreatedId='',animalRecordsFrom='sessions',issueReturn='issues',swapQuery='',detailUid='',animalListQuery='';
 function demoSite(){return demoAccount.sites.find(x=>x.id===demoSiteId)||demoAccount.sites[0]||null}
 function recordYields(rec=data){const site=demoAccount.sites.find(x=>x.id===rec.siteId)||demoAccount.sites.find(x=>x.name===rec.site);return site?!!site.yields:!!rec.yields;}
 function demoSiteDesc(s){return s.type==='Rotary'?'Rotary · '+s.stalls+' bails':'Herringbone · '+s.rows+' × '+s.stalls;}
@@ -237,9 +237,6 @@ function wizardScreen(){
   foot=btn('BACK','wizard-back','outline')+btn('CREATE SESSION','wizard-create','primary');
  }
  return ['<div class="journey-page wizard-page"><div class="tinycap">AD HOC SESSION · '+safe(demoAccount.farm)+'</div><h2>Create sampling session</h2>'+top+html+'</div>','<div class="journey-actions">'+foot+'</div>'];
-}
-function sessionCreatedScreen(){
- return ['<div class="journey-page"><div class="journey-done-label">✓ DEMO SESSION CREATED</div><h2>'+safe(data.session)+'</h2><section class="journey-card"><div class="tinycap">SAMPLING DATA ON THIS DEVICE</div><div class="journey-plain-row">Session information <strong>Prepared locally</strong></div><div class="journey-plain-row">Parlour configuration <strong>Demo</strong></div><div class="journey-plain-row">Animal data <strong>'+ (demoPrefs.downloadAuto?'Demo catalogue ready':'Update optional') +'</strong></div><div class="journey-plain-row">Tests <strong>Available after pot linking</strong></div></section><p class="hint">This session is stored on this browser only. NMR has not registered or accepted it.</p></div>',btn('VIEW SESSION','view-created-session','primary wide')+btn('SAMPLING SESSIONS','goto-sessions','outline wide')];
 }
 function animalRecordsScreen(){
  const ready=!!data.animalDataUpdatedAt;
@@ -334,13 +331,13 @@ function timeInput(id,value){return `<input class="time-input" id="${id}" value=
 function header(){
  if(page==='signin')return '<div class="top signin-top"><div class="top-inner"><div class="signin-header-title">Sign in</div><span class="signin-not-authorised"><i aria-hidden="true"></i>NOT SIGNED IN</span></div></div>';
  const names={signin:'Sign in',account:'Account',site:'Site','new-session-flow':'Create session',
- 'session-created':'Session created','animal-records':'Animal records','session-details':'Session details',
+ 'animal-records':'Animal records','session-details':'Session details',
  settings:'Settings','sampling-settings':'Sampling settings','data-settings':'Data settings',about:'About',
  sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',
  issues:'Issues','animal-detail':'Animal details',boxes:'Scan sample boxes',tests:'Test management',data:'Data management'};
  const backs={account:'goto-sessions',site:'goto-account',settings:'goto-sessions',
  'sampling-settings':'goto-settings','data-settings':'goto-settings',about:'goto-settings',
- 'new-session-flow':'goto-sessions','session-created':'goto-sessions','animal-records':'goto-sessions',
+ 'new-session-flow':'goto-sessions','animal-records':'goto-sessions',
  'session-details':'goto-session',session:'goto-sessions',issues:'goto-session','animal-detail':'goto-issues',
  boxes:'goto-session',tests:'goto-session',data:'goto-session'};
  const back=backs[page];
@@ -387,7 +384,13 @@ function commitTestSelection(){
 function sessionsScreen(){
  const filtered=sessions.filter(rec=>(sessionListStatus==='all'||(sessionListStatus==='closed'?rec.phase==='closed':rec.phase!=='closed'))&&
   (sessionListSite==='all'||rec.site===sessionListSite));
- filtered.sort((a,b)=>{const date=String(a.sampleDate||a.session||'').localeCompare(String(b.sampleDate||b.session||''));return sessionListSort==='oldest'?date:-date});
+ filtered.sort((a,b)=>{
+  // After creating a session, make it the first visible row in UI-50.
+  if(sessionListCreatedId&&a.recordId===sessionListCreatedId)return -1;
+  if(sessionListCreatedId&&b.recordId===sessionListCreatedId)return 1;
+  const date=String(a.sampleDate||a.session||'').localeCompare(String(b.sampleDate||b.session||''));
+  return sessionListSort==='oldest'?date:-date;
+ });
  const sites=[...new Set(sessions.map(rec=>rec.site).filter(Boolean))];
  const controls='<div class="journey-grid-2"><select class="input" id="session-filter-status" aria-label="Filter sessions by status">'+[['all','All statuses'],['open','To sample'],['closed','Closed']].map(([k,v])=>'<option value="'+k+'" '+(sessionListStatus===k?'selected':'')+'>'+v+'</option>').join('')+'</select>'+
  '<select class="input" id="session-filter-site" aria-label="Filter sessions by parlour">'+[['all','All sites'],...sites.map(site=>[site,site])].map(([k,v])=>'<option value="'+safe(k)+'" '+(sessionListSite===k?'selected':'')+'>'+safe(v)+'</option>').join('')+'</select></div>'+
@@ -688,7 +691,7 @@ function boxesScreen(){
   '</div>';
  return [html,footer];
 }
-function render(){const [html,foot]=({issues:issuesScreen,'animal-detail':animalDetailScreen,'new-session-flow':wizardScreen,'session-created':sessionCreatedScreen,'animal-records':animalRecordsScreen,'session-details':sessionDetailsScreen,signin:signInScreen,account:accountScreen,site:siteScreen,settings:settingsOverviewScreen,'sampling-settings':samplingSettingsScreen,'data-settings':dataSettingsScreen,about:aboutScreen,sessions:sessionsScreen,session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen,tests:testManagementScreen,data:dataManagementScreen}[page]||sessionsScreen)();$('#app').innerHTML=`<div class="app ${page==='signin'?'app-signin':''}">${header()}<main class="body ${page==='signin'?'signin-body':''}" id="main-scroll">${html}</main>${foot?`<footer class="bottom ${page==='signin'?'signin-footer':''}">${foot}</footer>`:''}</div>`;if(page==='new-session-flow'){$('#main-scroll').scrollTop=0;}updateDebug();}
+function render(){const [html,foot]=({issues:issuesScreen,'animal-detail':animalDetailScreen,'new-session-flow':wizardScreen,'animal-records':animalRecordsScreen,'session-details':sessionDetailsScreen,signin:signInScreen,account:accountScreen,site:siteScreen,settings:settingsOverviewScreen,'sampling-settings':samplingSettingsScreen,'data-settings':dataSettingsScreen,about:aboutScreen,sessions:sessionsScreen,session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen,tests:testManagementScreen,data:dataManagementScreen}[page]||sessionsScreen)();$('#app').innerHTML=`<div class="app ${page==='signin'?'app-signin':''}">${header()}<main class="body ${page==='signin'?'signin-body':''}" id="main-scroll">${html}</main>${foot?`<footer class="bottom ${page==='signin'?'signin-footer':''}">${foot}</footer>`:''}</div>`;if(page==='new-session-flow'){$('#main-scroll').scrollTop=0;}updateDebug();}
 function refreshLinkingAfterScan(){
  // Intentionally never render() or replace #qr-reader during a successful QR read.
  const last=$('#last-linked');if(last)last.innerHTML=latest()?animalCard(latest(),{latest:true}):'<div class="no-last">The last linked animal will appear here in green</div>';
@@ -939,7 +942,7 @@ async function startCamera(){
  }
 }
 async function navigate(to,{autoCamera=false}={}){
- await stopCamera();page=to;modal='';$('#modal-root').replaceChildren();render();
+ await stopCamera();if(to!=='sessions')sessionListCreatedId='';page=to;modal='';$('#modal-root').replaceChildren();render();
  if(autoCamera&&((to==='linking'&&data.phase==='linking'&&waiting().length)||to==='boxes'))startCamera();
 }
 function openModal(name,which='',options={}){
@@ -1235,9 +1238,12 @@ function doAction(action,button){
    siteId:site.id,animalsHeld:true,
    animalDataUpdatedAt:demoPrefs.downloadAuto?timestamp():'',yields:site.yields});
   activeRecordId=data.recordId;sessions.push(data);store();wizardDraft=null;
-  navigate('session-created');break;
+  // The review step already confirms creation; go straight to UI-50.
+  // Reset any previous filters so the new session cannot be hidden.
+  sessionListStatus='all';sessionListSite='all';sessionListSort='newest';
+  sessionListCreatedId=data.recordId;
+  navigate('sessions');break;
  }
- case 'view-created-session':navigate('animal-records');break;
  case 'animal-records-continue':navigate('session');break;
  case 'animal-records-refresh':if(!activeRecordId)return toast('Open a session first.');data.animalDataUpdatedAt=timestamp();store();render();toast('Local demo record timestamp refreshed.');break;
  case 'save-session-details':{
