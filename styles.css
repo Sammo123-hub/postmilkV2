@@ -421,11 +421,11 @@ input[type="checkbox"],input[type="radio"]{accent-color:var(--brand-pink)}
   border-bottom:2px solid var(--brand-aqua);
 }
 .signin-top .top-inner{height:51px;min-height:51px}
-.signin-header-title{font:700 17px/1.2 'DM Sans',Arial,sans-serif;color:#fff}
+.signin-header-title{font:700 20px/1.2 'DM Sans',Arial,sans-serif;color:#fff}
 .signin-not-authorised{
   display:flex;gap:5px;align-items:center;
   color:#fff;white-space:nowrap;
-  font:700 13px 'Barlow Condensed',Arial,sans-serif;letter-spacing:.02em;
+  font:700 16px 'Barlow Condensed',Arial,sans-serif;letter-spacing:.02em;
 }
 .signin-not-authorised i{width:6px;height:6px;border-radius:50%;background:#9cb4c7;flex:none}
 .body.signin-body{padding:0 14px 20px;display:block;background:#fff}
@@ -436,33 +436,33 @@ input[type="checkbox"],input[type="radio"]{accent-color:var(--brand-pink)}
 .signin-nmr-mark{width:142px;height:89px;flex:none;align-self:flex-start;margin-left:-14px}
 .signin-nmr-mark svg{display:block;width:142px;height:88px}
 .signin-page-title{
-  color:var(--brand-navy);font:400 26px/1.24 'DM Sans',Arial,sans-serif;
+  color:var(--brand-navy);font:400 31px/1.2 'DM Sans',Arial,sans-serif;
   letter-spacing:-.045em;margin:17px 0 0;
 }
 .signin-page-title strong{font-weight:800}
 .signin-title-accent{width:10px;height:2px;background:var(--brand-pink);margin-top:20px;margin-bottom:8px}
-.signin-intro{margin:0;color:#284563;font:400 15px/1.45 'DM Sans',Arial,sans-serif}
+.signin-intro{margin:0;color:#284563;font:400 18px/1.45 'DM Sans',Arial,sans-serif}
 .signin-form-row{display:flex;flex-direction:column;gap:4px;margin-top:21px;min-width:0}
 .signin-form-row + .signin-form-row{margin-top:13px}
-.signin-form-row label{color:var(--brand-navy);font:600 14px/1.35 'DM Sans',Arial,sans-serif}
+.signin-form-row label{color:var(--brand-navy);font:600 18px/1.35 'DM Sans',Arial,sans-serif}
 .signin-text-field{
   box-sizing:border-box;display:flex;align-items:center;gap:8px;
-  height:48px;min-height:48px;border:1.5px solid var(--brand-navy);
-  border-radius:5px;padding:0 11px;min-width:0;
-  color:var(--brand-navy);font:500 16px 'DM Sans',Arial,sans-serif;
+  height:56px;min-height:56px;border:1.5px solid var(--brand-navy);
+  border-radius:5px;padding:0 12px;min-width:0;
+  color:var(--brand-navy);font:500 20px 'DM Sans',Arial,sans-serif;
   overflow:hidden;white-space:nowrap;
 }
 .signin-password-field{border:1px solid #c5d2df;justify-content:space-between}
 .signin-password-field button{
   background:transparent;border:0;min-height:44px;padding:0 1px 0 10px;
   color:var(--brand-navy);
-  font:700 14px 'Barlow Condensed',Arial,sans-serif;letter-spacing:.035em;
+  font:700 17px 'Barlow Condensed',Arial,sans-serif;letter-spacing:.035em;
 }
 .signin-help{
   display:block;align-self:flex-start;min-height:22px;padding:0;margin-top:11px;
   background:none;border:0;color:var(--brand-navy);
   text-align:left;text-decoration:underline;text-decoration-color:var(--brand-pink);
-  text-underline-offset:2px;font:600 14px 'DM Sans',Arial,sans-serif;
+  text-underline-offset:2px;font:600 18px 'DM Sans',Arial,sans-serif;
 }
 .bottom.signin-footer{
   flex:none;display:flex;flex-direction:column;align-items:stretch;gap:15px;
@@ -474,14 +474,14 @@ input[type="checkbox"],input[type="radio"]{accent-color:var(--brand-pink)}
   display:flex;justify-content:space-between;align-items:center;
   gap:12px;min-height:31px;padding-top:8px;
   border-top:1px solid #e8edf1;max-width:440px;width:100%;margin:0 auto;
-  color:#7a90a7;font:400 13px/1.35 'DM Sans',Arial,sans-serif;
+  color:#607487;font:500 16px/1.35 'DM Sans',Arial,sans-serif;
 }
 .signin-device-status span:last-child{text-align:right}
 .signin-submit.btn{
-  box-sizing:border-box;width:100%;max-width:440px;min-height:50px;height:50px;
+  box-sizing:border-box;width:100%;max-width:440px;min-height:58px;height:58px;
   margin:0 auto;border:0;border-radius:5px;
   background:var(--brand-pink);color:#fff;
-  font:700 18px 'Barlow Condensed',Arial,sans-serif;letter-spacing:.04em;
+  font:700 22px 'Barlow Condensed',Arial,sans-serif;letter-spacing:.04em;
 }
 @media(min-width:700px){
  .body.signin-body{padding:0 14px 20px}
