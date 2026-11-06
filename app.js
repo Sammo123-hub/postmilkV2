@@ -259,14 +259,21 @@ const noSample=()=>animals().filter(a=>!!a.noSampleReason);
 const next=()=>waiting()[0]||null;
 const latest=()=>linked().slice().sort((a,b)=>b.linkedSequence-a.linkedSequence)[0]||null;
 const dupLines=()=>{const map=new Map();for(const a of animals())map.set(a.line,(map.get(a.line)||0)+1);return new Set([...map].filter(([,n])=>n>1).map(([line])=>line));};
-const canFinish=()=>!waiting().length&&!dupLines().size;
+const duplicateSampleIds=()=>{
+ const seen=new Map();
+ for(const a of linked())seen.set(a.sample,(seen.get(a.sample)||0)+1);
+ return new Set([...seen].filter(([,count])=>count>1).map(([sample])=>sample));
+};
+const blockingIssues=()=>dupLines().size+duplicateSampleIds().size;
+const needsIssueReview=()=>noSample().filter(a=>!a.noSampleReason||a.noSampleReason==='Not sampled').length;
+const canFinish=()=>!waiting().length&&!blockingIssues();
 function store(){if(activeRecordId)data.changeRevision=(Number(data.changeRevision)||0)+1;syncActiveSession();persistRegistry();}
 function toast(t){if(!$('#toast-root'))return;$('#toast-root').innerHTML=`<div class="toast">${safe(t)}</div>`;clearTimeout(toaster);toaster=setTimeout(()=>$('#toast-root').replaceChildren(),3000);}
 function sound(){try{const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)return;soundCtx||=new Audio();const o=soundCtx.createOscillator(),g=soundCtx.createGain();o.frequency.value=840;g.gain.setValueAtTime(.075,soundCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,soundCtx.currentTime+.14);o.connect(g).connect(soundCtx.destination);o.start();o.stop(soundCtx.currentTime+.15);navigator.vibrate?.(40);}catch{}}
 const btn=(label,act,cls='',attrs='')=>`<button class="btn ${cls}" type="button" data-action="${act}" ${attrs}>${label}</button>`;
 function normalTime(value){let s=String(value||'').trim();if(!s)return '';if(/^\d{4}$/.test(s))s=s.slice(0,2)+':'+s.slice(2);const match=s.match(/^(\d{1,2}):(\d{2})$/);if(!match)return '';const h=+match[1],m=+match[2];return h<=23&&m<=59?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`:'';}
 function timeInput(id,value){return `<input class="time-input" id="${id}" value="${safe(value)}" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocorrect="off" autocapitalize="off" autocomplete="off" spellcheck="false" aria-label="${id.includes('start')?'Milking start':'Milking end'} time" data-complete="${normalTime(value)?'1':'0'}">`;}
-function header(){let name={'new-session-flow':'Create session','session-created':'Session created','animal-records':'Session animal records','session-details':'Session details',signin:'Sign in',account:'DIY account',site:'DIY site',settings:'Settings','sampling-settings':'Sampling settings','data-settings':'Data settings',about:'About',sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',boxes:'Scan sample boxes',tests:'Test management',data:'Data management'}[page];return `<div class="top"><div class="top-inner"><div class="top-name">${(page==='boxes'||page==='tests'||page==='data')?'<button type="button" class="box-back" data-action="goto-session" aria-label="Back to Session management">‹</button>':page==='session'?'<button type="button" class="box-back" data-action="goto-sessions" aria-label="Back to Sampling sessions">‹</button>':''}${name}</div><div class="top-actions"><span class="top-save" id="save-state">${pendingSave?'NOT SAVED':'SAVED'}</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button></div></div></div><div class="farm-strip">${page==='sessions'?'POST-MILKING · SESSION OVERVIEW':safe(data.site)+' · '+(page==='session'||page==='boxes'?'SESSION '+safe(data.session):'HERD '+safe(data.herd))}</div>`;}
+function header(){let name={issues:'Issues','animal-detail':'Animal details','new-session-flow':'Create session','session-created':'Session created','animal-records':'Session animal records','session-details':'Session details',signin:'Sign in',account:'DIY account',site:'DIY site',settings:'Settings','sampling-settings':'Sampling settings','data-settings':'Data settings',about:'About',sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',boxes:'Scan sample boxes',tests:'Test management',data:'Data management'}[page];return `<div class="top"><div class="top-inner"><div class="top-name">${(page==='boxes'||page==='tests'||page==='data')?'<button type="button" class="box-back" data-action="goto-session" aria-label="Back to Session management">‹</button>':page==='session'?'<button type="button" class="box-back" data-action="goto-sessions" aria-label="Back to Sampling sessions">‹</button>':''}${name}</div><div class="top-actions"><span class="top-save" id="save-state">${pendingSave?'NOT SAVED':'SAVED'}</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button></div></div></div><div class="farm-strip">${page==='sessions'?'POST-MILKING · SESSION OVERVIEW':safe(data.site)+' · '+(page==='session'||page==='boxes'?'SESSION '+safe(data.session):'HERD '+safe(data.herd))}</div>`;}
 function stage(number,title,state,content='',current=false){return `<section class="stage ${current?'current':state==='Complete'?'complete':''}">${current?'<span class="tinycap">CURRENT · NEXT STEP</span>':''}<div class="stage-row"><span class="stage-num">${state==='Complete'?'✓':number}</span><span class="stage-title">${safe(title)}</span><span class="stage-state ${state==='Complete'?'done':''}">${safe(state)}</span></div>${content}</section>`;}
 function detail(k,v){return `<div><span class="tinycap">${safe(k)}</span><div class="detail-value">${safe(v)}</div></div>`;}
 const TEST_TYPES=['JOHNES','BVD','PAG','NEO'];
@@ -467,11 +474,13 @@ function sessionScreen(){
   :'';
  const stages=stage(1,'Sample linking',stage1,body,data.phase!=='confirmed'&&data.phase!=='closed')+
  stage(2,'Sync & consolidation',data.phase==='confirmed'||data.phase==='closed'?'Complete':'Locked',data.phase==='confirmed'||data.phase==='closed'?'<div class="hint">Single-device prototype: no synchronisation service connected.</div>':'')+
- stage(3,'Issues',dupLines().size?'Outstanding':data.phase==='confirmed'||data.phase==='closed'?'Complete':'Locked',dupLines().size?`${btn('REVIEW DUPLICATE LINE NUMBERS','goto-animals','outline wide')}`:'')+
+ stage(3,'Issues',blockingIssues()?'Outstanding':needsIssueReview()?'Review':data.phase==='confirmed'||data.phase==='closed'?'Complete':'Locked',
+ (blockingIssues()||needsIssueReview()||data.phase==='confirmed'||data.phase==='closed')?
+ btn(blockingIssues()?'RESOLVE ISSUES':'REVIEW ISSUES','goto-issues','outline wide'):'')+
  stage(4,'Add tests',addTestsState,addTestsContent,!!sampledCount&&data.phase!=='closed')+
  stage(5,'Sample boxes',data.boxesConfirmed?'Complete':data.phase==='confirmed'?'Outstanding':'Locked',data.phase==='confirmed'?btn('SCAN SAMPLE BOXES','goto-boxes','secondary wide'):'');
  const html=`<div class="tinycap">SESSION STATUS</div><div class="heading">${status}</div><section class="card"><div class="details-head"><span class="tinycap">SESSION DETAILS</span>${data.phase!=='closed'?btn('EDIT','edit-session','secondary smallbtn'):'<span>READ ONLY</span>'}</div><div class="details-grid">${detail('ORGANISATION',data.org)}${detail('SITE · ST-120455',data.site)}${detail('HERD',data.herd)}${detail('METHOD','Post-milking')}${detail('MILKING',`${data.start||'—'} – ${data.end||'—'}`)}${detail('SESSION ID',data.session)}${detail('YIELDS',data.yields?'Required':'Not required')}${detail('DEVICES','1 device')}</div></section>${stages}`;
- const foot=data.phase==='closed'?'':btn('CLOSE SAMPLING SESSION','ask-close','primary wide',data.phase==='confirmed'&&data.boxesConfirmed&&!dupLines().size?'':'disabled');
+ const foot=data.phase==='closed'?'':btn('CLOSE SAMPLING SESSION','ask-close','primary wide',data.phase==='confirmed'&&data.boxesConfirmed&&!blockingIssues()?'':'disabled');
  return [html,foot];
 }
 function animalCard(a,options={}){
@@ -511,6 +520,48 @@ function linkingScreen(){
   footer=`${btn('+ ADD COWS','add-animal','primary')}${btn('SESSION MANAGEMENT','goto-session','outline')}`;
  }
  return [html,footer];
+}
+function issuesScreen(){
+ const repeated=dupLines(),duplicateSamples=duplicateSampleIds();
+ const invalid=animals().filter(a=>repeated.has(a.line)||a.sample&&duplicateSamples.has(a.sample));
+ const missing=noSample().filter(a=>!a.noSampleReason||a.noSampleReason==='Not sampled');
+ const items=invalid.map(a=>'<button class="journey-issue-row warning" data-action="issue-animal" data-uid="'+safe(a.uid)+'"><div><b>'+safe(a.line)+'</b><div><span>'+safe(a.sample?'Sample '+a.sample:'No linked sample')+'</span></div><span>'+safe(repeated.has(a.line)?'Duplicate animal line':'Duplicate Sample ID')+' · position '+(animals().indexOf(a)+1)+'</span></div><strong>REVIEW ›</strong></button>').join('');
+ const misses=missing.map(a=>'<button class="journey-issue-row" data-action="issue-no-sample" data-uid="'+safe(a.uid)+'"><div><b>'+safe(a.line)+'</b><div><span>No sample · reason optional</span></div></div><strong>REVIEW ›</strong></button>').join('');
+ return ['<div class="journey-page"><h2>Issues</h2><p class="hint">Resolve blocking duplicates before closing the session. No Sample reasons are optional. Corrections may create new issues, which stay on this list.</p>'+
+  '<section class="journey-card"><div class="tinycap">BLOCKING · '+invalid.length+' RECORDS</div><div class="journey-issues">'+(items||'<p class="hint">No blocking duplicates.</p>')+'</div></section>'+
+  '<section class="journey-card"><div class="tinycap">NON-BLOCKING · '+missing.length+' NO SAMPLE</div><div class="journey-issues">'+(misses||'<p class="hint">No outstanding No Sample reasons.</p>')+'</div></section></div>',btn('SESSION MANAGEMENT','goto-session','secondary wide')];
+}
+function animalDetailScreen(){
+ const a=animals().find(x=>x.uid===selectedUid);
+ if(!a)return ['<div class="notice">This record is no longer on the sampling list.</div>',btn('ISSUES','goto-issues','outline wide')];
+ const repeated=dupLines().has(a.line),duplicateCode=!!a.sample&&duplicateSampleIds().has(a.sample);
+ const position=animals().indexOf(a)+1,closed=data.phase==='closed';
+ const issueNote=repeated?'<div class="journey-warning">DUPLICATE ANIMAL. Another sampling record has line '+safe(a.line)+'. Use Swap Animal to correct this record; it may reveal another duplicate.</div>':duplicateCode?'<div class="journey-warning">DUPLICATE SAMPLE ID. This Sample ID is linked to another animal. Correct one of the sample links before closing.</div>':'';
+ return ['<div class="journey-page"><div class="tinycap">POST-MILKING · LIST POSITION '+position+'</div><h2>Animal details</h2>'+issueNote+
+  '<section class="journey-card"><div class="tinycap">ANIMAL</div><strong>'+safe(a.line)+'</strong>'+(a.previousLine?'<span>Changed from '+safe(a.previousLine)+'</span>':'')+'<div class="tinycap">SAMPLING</div><div class="journey-plain-row">Method <strong>Post-milking</strong></div><div class="journey-plain-row">Device <strong>PM-DEMO-0142</strong></div><div class="journey-plain-row">List position <strong>'+position+'</strong></div>'+
+  (closed?'':btn('SWAP ANIMAL','open-swap','outline wide'))+'</section>'+
+  '<section class="journey-card"><div class="tinycap">SAMPLE</div><div class="journey-plain-row">Status <strong>'+(a.sample?'Linked':a.noSampleReason?'No sample':'Awaiting')+'</strong></div><div class="journey-plain-row">Sample ID <strong>'+safe(a.sample||'—')+'</strong></div><div class="journey-plain-row">Yield <strong>'+safe(a.yield?a.yield+' kg':'—')+'</strong></div><div class="journey-plain-row">Tests <strong>'+safe(animalTests(a).join(', ')||'—')+'</strong></div>'+
+  (closed?'':btn('AMEND YIELD','open-detail-yield','outline wide')+(a.sample?btn('UNLINK SAMPLE','unlink-detail-sample','outline wide'):''))+
+  (a.sample?btn('ADD / CHANGE TESTS','detail-add-test','secondary wide'):'')+'</section></div>',btn('BACK TO ISSUES','goto-issues','outline wide')];
+}
+function swapPickerMarkup(){
+ const a=animals().find(x=>x.uid===selectedUid);
+ const matches=HerdDemo.HERD.filter(h=>!swapQuery||h.line.includes(swapQuery)).slice(0,20);
+ const rows=matches.map(h=>{
+  const already=animals().some(x=>x!==a&&x.line===h.line);
+  return '<button type="button" class="journey-issue-row" data-action="swap-pick" data-line="'+safe(h.line)+'"><strong>'+safe(h.line)+'</strong><span>'+(already?'Already in sampling list · may create duplicate':'Available herd animal')+'</span><b>SELECT</b></button>';
+ }).join('');
+ return '<h2>Swap animal</h2><p class="hint">Change only the animal on this sampling record. Existing Sample ID, yield and tests stay with this record. You can select an animal already sampled; if this creates another duplicate, it will appear in Issues.</p><label class="field-label">SEARCH DEMO HERD BY LINE NUMBER</label><input id="swap-search" class="input" type="search" value="'+safe(swapQuery)+'" placeholder="Search line number"><div class="journey-issues" id="swap-results">'+(rows||'<p class="hint">No matching herd animals.</p>')+'</div>'+btn('CANCEL','modal-close','outline wide');
+}
+function applyAnimalSwap(animalUid,line){
+ const a=animals().find(x=>x.uid===animalUid);
+ if(!a||data.phase==='closed')return false;
+ if(!HerdDemo.HERD.some(h=>h.line===line))return false;
+ if(a.line===line)return true;
+ a.previousLine=a.line;a.line=line;a.changedAt=timestamp();
+ // The sample relation, yield and tests belong to the sampling record and
+ // are deliberately not touched by changing its animal.
+ store();return true;
 }
 function animalsScreen(){const chosen=animals().filter(a=>filter==='all'||filter==='linked'&&a.sample||filter==='awaiting'&&!a.sample&&!a.noSampleReason||filter==='no-sample'&&a.noSampleReason);
  const buttons=['all','awaiting','linked','no-sample'].map(key=>`<button type="button" class="pill ${filter===key?'active':''}" data-action="filter" data-filter="${key}">${safe(key.toUpperCase())}</button>`).join('');
@@ -553,7 +604,7 @@ function boxesScreen(){
   '</div>';
  return [html,footer];
 }
-function render(){const [html,foot]=({'new-session-flow':wizardScreen,'session-created':sessionCreatedScreen,'animal-records':animalRecordsScreen,'session-details':sessionDetailsScreen,signin:signInScreen,account:accountScreen,site:siteScreen,settings:settingsOverviewScreen,'sampling-settings':samplingSettingsScreen,'data-settings':dataSettingsScreen,about:aboutScreen,sessions:sessionsScreen,session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen,tests:testManagementScreen,data:dataManagementScreen}[page]||sessionsScreen)();$('#app').innerHTML=`<div class="app">${header()}<main class="body" id="main-scroll">${html}</main>${foot?`<footer class="bottom">${foot}</footer>`:''}</div>`;updateDebug();}
+function render(){const [html,foot]=({issues:issuesScreen,'animal-detail':animalDetailScreen,'new-session-flow':wizardScreen,'session-created':sessionCreatedScreen,'animal-records':animalRecordsScreen,'session-details':sessionDetailsScreen,signin:signInScreen,account:accountScreen,site:siteScreen,settings:settingsOverviewScreen,'sampling-settings':samplingSettingsScreen,'data-settings':dataSettingsScreen,about:aboutScreen,sessions:sessionsScreen,session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen,tests:testManagementScreen,data:dataManagementScreen}[page]||sessionsScreen)();$('#app').innerHTML=`<div class="app">${header()}<main class="body" id="main-scroll">${html}</main>${foot?`<footer class="bottom">${foot}</footer>`:''}</div>`;updateDebug();}
 function refreshLinkingAfterScan(){
  // Intentionally never render() or replace #qr-reader during a successful QR read.
  const last=$('#last-linked');if(last)last.innerHTML=latest()?animalCard(latest(),{latest:true}):'<div class="no-last">The last linked animal will appear here in green</div>';
@@ -813,7 +864,7 @@ function openModal(name,which='',options={}){
  if(name==='menu')html=`<h2>Main menu</h2><span class="tinycap">DEMO BUILD · VERSION ${VERSION}</span>${[
  ['ACCOUNT',[['goto-account','DIY Account'],['goto-settings','Settings']]],
  ['SESSIONS',[['goto-sessions','Sampling sessions'],['new-session','Create ad hoc session'],['goto-session','Current session']]],
- ['SAMPLING',[['goto-linking','Post-milking linking'],['goto-animals','Animals and issues'],['goto-tests','Test management'],['goto-boxes','Sample boxes']]],
+ ['SAMPLING',[['goto-linking','Post-milking linking'],['goto-animals','Animals'],['goto-issues','Issues'],['goto-tests','Test management'],['goto-boxes','Sample boxes']]],
  ['DATA',[['goto-data','Data management'],['view-test-herd','Demo herd · 70 animals']]]
  ].map(([section,actions])=>'<div class="tinycap journey-menu-heading">'+section+'</div>'+actions.map(([key,title])=>'<button class="menu-row" data-action="'+key+'">'+title+'<span>›</span></button>').join('')).join('')}<div class="notice">Fictional account. Data stays on this device; NMR is not connected.</div>${btn('LOAD DEMO ANIMALS','load-demo','outline wide')}${btn('SIGN OUT','demo-sign-out','outline wide')}${btn('RESET DEMO SESSION','reset','danger wide')}`;
  if(name==='new-session')html='<h2>New sampling session</h2><p class="hint">Create a separate sampling session; existing sessions will be preserved.</p>'+
@@ -830,6 +881,10 @@ function openModal(name,which='',options={}){
    '<div class="add-test-options">'+TEST_TYPES.map(t=>'<button type="button" class="add-test-option '+(testDraft.has(t)?'selected':'')+'" data-action="toggle-add-test" data-test="'+t+'"><span class="test-check">'+(testDraft.has(t)?'✓':'')+'</span>'+t+'</button>').join('')+'</div>'+
    '<div class="buttons">'+btn('CANCEL','modal-close','outline')+'<button type="button" class="btn secondary" data-action="save-add-test" id="save-add-test">DONE</button></div></div>';
  }
+ if(name==='swap-animal')html=swapPickerMarkup();
+ if(name==='amend-yield'&&animal)html='<h2>Amend milk yield</h2><div class="tinycap">ANIMAL '+safe(animal.line)+'</div><div class="tinycap">SAMPLE '+safe(animal.sample||'—')+'</div>'+
+  '<label class="field-label">YIELD (KG)</label><input id="amend-yield-value" class="input" inputmode="decimal" type="number" min="0" step="0.1" value="'+safe(animal.yield||'')+'">'+
+  '<div class="buttons">'+btn('CANCEL','modal-close','outline')+btn('SAVE','save-detail-yield','secondary')+'</div>';
  if(name==='edit-demo-contact')html='<h2>Fictional invoicing contact</h2>'+
   '<label class="field-label">NAME</label><input class="input" id="demo-contact-name" value="'+safe(demoAccount.contact)+'">'+
   '<label class="field-label">PHONE</label><input class="input" id="demo-contact-phone" value="'+safe(demoAccount.phone)+'">'+
@@ -958,6 +1013,42 @@ function doAction(action,button){
  }
  case 'goto-sessions':navigate('sessions');break;
  case 'goto-data':if(!activeRecordId)return toast('Create or select a session first.');navigate('data');break;
+ case 'goto-issues':navigate('issues');break;
+ case 'issue-animal':selectedUid=button.dataset.uid;navigate('animal-detail');break;
+ case 'issue-no-sample':{
+  const a=animals().find(x=>x.uid===button.dataset.uid);
+  if(!a)return;selectedUid=a.uid;openModal('no-sample',a.uid);break;
+ }
+ case 'open-swap':if(data.phase==='closed')return toast('Sampling record is closed.');swapQuery='';openModal('swap-animal',selectedUid);break;
+ case 'swap-pick':{
+  const chosen=button.dataset.line,aId=selectedUid;
+  if(!applyAnimalSwap(aId,chosen))return toast('Unable to swap this animal.');
+  closeModal(false);navigate('animal-detail');break;
+ }
+ case 'open-detail-yield':{
+  const a=animals().find(x=>x.uid===selectedUid);
+  if(!a||data.phase==='closed')return;
+  openModal('amend-yield',a.uid);break;
+ }
+ case 'save-detail-yield':{
+  const a=animals().find(x=>x.uid===selectedUid),value=$('#amend-yield-value')?.value.trim()||'';
+  if(!a||data.phase==='closed')return;
+  if(value!==''&&(!Number.isFinite(+value)||Number(value)<0))return toast('Enter a non-negative yield.');
+  a.yield=value;store();closeModal(false);navigate('animal-detail');break;
+ }
+ case 'unlink-detail-sample':{
+  const a=animals().find(x=>x.uid===selectedUid);
+  if(!a||!a.sample||data.phase==='closed')return;
+  if(!confirm('Remove this sample link and its assigned tests?'))return;
+  a.sample='';a.linkedAt='';a.linkedSequence=0;a.tests=[];
+  if(data.phase==='confirmed'){data.phase='linking';data.boxesConfirmed=false;}
+  store();navigate('animal-detail');break;
+ }
+ case 'detail-add-test':{
+  const a=animals().find(x=>x.uid===selectedUid);
+  if(a?.sample)openModal('add-test',a.uid);break;
+ }
+
  case 'download-compiled-json':downloadCompiledJSON();break;
  case 'data-add-animals':{
   const count=readTestCount('data-add-count',remainingTestHerd().length);
@@ -1091,7 +1182,7 @@ function doAction(action,button){
  case 'boxes-done':if(data.phase==='closed'||(data.boxes.length>0&&data.boxesConfirmed))navigate('session');else toast('Scan at least one box and confirm all boxes are scanned.');break;
  case 'goto-linking':navigate('linking',{autoCamera:true});break;
  case 'goto-animals':filter='all';navigate('animals');break;
- case 'goto-boxes':if(data.phase!=='confirmed'&&data.phase!=='closed')return toast('Confirm sample linking before scanning boxes');navigate('boxes',{autoCamera:data.phase!=='closed'});break;
+ case 'goto-boxes':if(data.phase!=='confirmed'&&data.phase!=='closed')return toast('Confirm sample linking before scanning boxes');if(blockingIssues())return toast('Resolve blocking duplicate issues before scanning boxes.');navigate('boxes',{autoCamera:data.phase!=='closed'});break;
  case 'show-linked':filter='linked';navigate('animals');break;
  case 'filter':filter=button.dataset.filter;render();break;
  case 'add-animal':if(data.phase==='closed')return;HerdDemo.openPicker();break;
@@ -1148,9 +1239,9 @@ function doAction(action,button){
  case 'undo-no-sample':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.noSampleReason='';store();closeModal(false);render();if(page==='linking')startCamera();break;}
  case 'remove-animal':{const a=animals().find(a=>a.uid===selectedUid);if(!a||!confirm('Remove '+a.line+' from this session?'))return;a.removed=true;a.tests=[];store();closeModal(false);render();if(page==='linking'&&waiting().length)startCamera();break;}
  case 'confirm-linking':openModal('confirm-linking');break;
- case 'do-confirm-linking':if(!canFinish())return toast('Deal with awaiting or duplicate animals first');data.phase='confirmed';data.confirmedAt=timestamp();store();navigate('session');break;
+ case 'do-confirm-linking':if(!canFinish())return toast('Deal with awaiting and blocking duplicate records first');data.phase='confirmed';data.confirmedAt=timestamp();store();navigate('session');break;
  case 'reopen-linking':data.phase='linking';data.boxesConfirmed=false;store();navigate('linking',{autoCamera:true});break;
- case 'ask-close':if(data.phase!=='confirmed'||!data.boxesConfirmed||dupLines().size)return toast('Finish sampling and boxes first');openModal('confirm-close');break;
+ case 'ask-close':if(data.phase!=='confirmed'||!data.boxesConfirmed||blockingIssues())return toast('Finish sampling, resolve duplicate issues and scan boxes first');openModal('confirm-close');break;
  case 'do-close':data.phase='closed';data.closedAt=timestamp();store();navigate('session');break;
  case 'export':exportJSON();break;
  case 'import':{const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.addEventListener('change',()=>importJSON(inp.files?.[0]),{once:true});inp.click();break;}
@@ -1160,6 +1251,15 @@ function doAction(action,button){
 document.addEventListener('click',e=>{const button=e.target.closest('[data-action]');if(!button||button.disabled)return;if(button.dataset.action==='backdrop'&&button!==e.target)return;e.preventDefault();doAction(button.dataset.action,button)});
 document.addEventListener('input',e=>{
  const el=e.target;
+ if(el.id==='swap-search'&&modal==='swap-animal'){
+  swapQuery=el.value;
+  const next=swapPickerMarkup();
+  const start=next.indexOf('<div class="journey-issues" id="swap-results">'),end=next.indexOf('</div>',start);
+  const list=$('#swap-results');
+  if(list&&start>=0&&end>=0){const contents=next.slice(start+'<div class="journey-issues" id="swap-results">'.length,end);list.innerHTML=contents;}
+  return;
+ }
+
  if(el.id==='camera-zoom'){CameraSettings.setZoom(el.value);return;}
  if(el.id==='test-search'&&page==='tests'){testQuery=el.value;const p=$('#main-scroll');const top=p?.scrollTop||0;render();const next=$('#test-search');if(next){next.focus();next.setSelectionRange?.(testQuery.length,testQuery.length);}if(p)p.scrollTop=top;return;}
  if(!['milking-start','milking-end','edit-start','edit-end'].includes(el.id))return;
