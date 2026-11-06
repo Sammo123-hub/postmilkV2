@@ -17,7 +17,7 @@ const HerdDemo=(()=>{
   if(matches.some(a=>!a.sample&&!a.noSampleReason))return 'awaiting';
   return 'no-sample';
  };
- const words={available:'AVAILABLE',sampled:'SAMPLED',awaiting:'AWAITING', 'no-sample':'NO SAMPLE'};
+ const words={available:'NOT ADDED',sampled:'SAMPLED',awaiting:'AWAITING', 'no-sample':'NO SAMPLE'};
  const labelFor=line=>words[kind(line)];
  const find=()=>HERD.filter(a=>!query||a.line.includes(query));
  function padHtml(){
@@ -30,8 +30,8 @@ const HerdDemo=(()=>{
   if(!rows.length)return '';
   const list=rows.slice(0,25).map(a=>{
    const k=kind(a.line),linked=byLine(a.line).find(x=>x.sample);
-   const detail=k==='sampled'&&linked?'Sample '+safe(linked.sample):k==='awaiting'?'Already in list':k==='no-sample'?'No sample recorded':'';
-   // UI-12 mockup 4.2.1/4.2.2: Available matches show a large line number and + ADD,
+   const detail=k==='sampled'&&linked?'Sample '+safe(linked.sample):k==='awaiting'?'Added to session; awaiting pot':k==='no-sample'?'No sample recorded':'';
+   // UI-12 mockup 4.2.1/4.2.2: Not-added matches show a line number and + ADD,
    // in individual pale-blue outlined boxes; no redundant "Not yet added" caption.
    const detailHtml=detail?'<span class="herd-match-meta">'+safe(detail)+'</span>':'';
    return '<button type="button" class="herd-match '+k+'" data-action="herd-pick" data-line="'+a.line+'"><span class="herd-match-line">'+a.line+'</span>'+detailHtml+'<span class="herd-match-add">'+(k==='available'?'+ ADD':'SELECT')+'</span></button>';
@@ -213,7 +213,7 @@ const HerdDemo=(()=>{
  }
  function catalog(){
   const n=counts();
-  const tabs=[['all','ALL · '+HERD.length],['available','AVAILABLE · '+n.available],['awaiting','AWAITING · '+n.awaiting],['sampled','SAMPLED · '+n.sampled],['no-sample','NO SAMPLE · '+n['no-sample']]];
+  const tabs=[['all','ALL · '+HERD.length],['available','NOT ADDED · '+n.available],['awaiting','AWAITING · '+n.awaiting],['sampled','SAMPLED · '+n.sampled],['no-sample','NO SAMPLE · '+n['no-sample']]];
   return '<div class="herd-catalog"><h2>TEST HERD · 70 ANIMALS</h2>'+
     '<p class="herd-subtitle">Separate from the animals entered into this sampling session. Test-only line numbers 00001–00070.</p>'+
     '<label class="field-label" for="herd-catalog-search">SEARCH LINE NUMBER</label>'+
