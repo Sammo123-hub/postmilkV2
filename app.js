@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.8.14';
+const VERSION='1.8.15';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -1122,7 +1122,7 @@ function openModal(name,which='',options={}){
   html='<h2>'+(editing?'Edit site':'Add site')+'</h2>'+
    '<label class="field-label">SITE NAME</label><input class="input" id="demo-site-name" value="'+safe(site.name)+'">'+
    '<label class="field-label">ADDRESS</label><input class="input" id="demo-site-address" value="'+safe(site.address)+'">'+
-   '<label class="field-label">PARLOUR TYPE</label><select class="input" id="demo-site-type">'+['Herringbone','Rotary','Other'].map(t=>'<option '+(site.type===t?'selected':'')+'>'+t+'</option>').join('')+'</select>'+
+   '<label class="field-label" for="demo-site-type">PARLOUR TYPE</label><div class="demo-site-type-frame"><select class="input" id="demo-site-type" aria-label="Parlour type">'+['Herringbone','Rotary','Other'].map(t=>'<option value="'+t+'" '+(site.type===t?'selected':'')+'>'+t+'</option>').join('')+'</select></div>'+
    '<label class="field-label">ROWS / ROTARY SETS</label><input class="input" id="demo-site-rows" type="number" min="1" max="8" value="'+site.rows+'">'+
    '<label class="field-label">STALLS PER ROW / BAILS</label><input class="input" id="demo-site-stalls" type="number" min="1" max="100" value="'+site.stalls+'">'+
    '<label class="field-label">AVAILABLE HERDS</label><div class="journey-checklist">'+free.map(h=>'<label><input type="checkbox" data-site-herd="'+safe(h)+'" '+(site.herds.includes(h)?'checked':'')+'> Herd '+safe(h)+'</label>').join('')+'</div>'+
