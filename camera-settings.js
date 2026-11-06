@@ -214,7 +214,7 @@ const CameraSettings=(()=>{
    (saved.mode==='small'?'Higher resolution requested where supported.':'Resolution selected by the browser.');
  }
  async function applySmallCodeResolution(instance=scanner){
-  if(saved.mode!=='small'||instance!==scanner||cameraState!=='live')return;
+  if(saved.mode!=='small'||instance!==scanner||cameraState!=='live'||(page==='boxes'&&modal!=='camera-settings'))return;
   const track=getTrack();
   if(!track?.applyConstraints)return;
   try{
