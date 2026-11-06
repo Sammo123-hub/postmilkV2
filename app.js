@@ -120,7 +120,7 @@ function saveDemoPrefs(){
 }
 let demoAccount=readDemoAccount(),demoPrefs=readDemoPrefs(),demoAuth=false;
 try{demoAuth=localStorage.getItem(DEMO_AUTH_STORAGE)==='signed-in'}catch{}
-let demoSiteId='demo-site-1',wizardStep=1,wizardDraft=null,sessionListStatus='all',sessionListSite='all',sessionListSort='newest',animalRecordsFrom='sessions',issueReturn='issues',swapQuery='',detailUid='';
+let demoSiteId='demo-site-1',wizardStep=1,wizardDraft=null,sessionListStatus='all',sessionListSite='all',sessionListSort='newest',animalRecordsFrom='sessions',issueReturn='issues',swapQuery='',detailUid='',animalListQuery='';
 function demoSite(){return demoAccount.sites.find(x=>x.id===demoSiteId)||demoAccount.sites[0]||null}
 function demoSiteDesc(s){return s.type==='Rotary'?'Rotary · '+s.stalls+' bails':'Herringbone · '+s.rows+' × '+s.stalls;}
 function sessionStatusLabel(rec){
@@ -273,7 +273,24 @@ function sound(){try{const Audio=window.AudioContext||window.webkitAudioContext;
 const btn=(label,act,cls='',attrs='')=>`<button class="btn ${cls}" type="button" data-action="${act}" ${attrs}>${label}</button>`;
 function normalTime(value){let s=String(value||'').trim();if(!s)return '';if(/^\d{4}$/.test(s))s=s.slice(0,2)+':'+s.slice(2);const match=s.match(/^(\d{1,2}):(\d{2})$/);if(!match)return '';const h=+match[1],m=+match[2];return h<=23&&m<=59?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`:'';}
 function timeInput(id,value){return `<input class="time-input" id="${id}" value="${safe(value)}" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocorrect="off" autocapitalize="off" autocomplete="off" spellcheck="false" aria-label="${id.includes('start')?'Milking start':'Milking end'} time" data-complete="${normalTime(value)?'1':'0'}">`;}
-function header(){let name={issues:'Issues','animal-detail':'Animal details','new-session-flow':'Create session','session-created':'Session created','animal-records':'Session animal records','session-details':'Session details',signin:'Sign in',account:'DIY account',site:'DIY site',settings:'Settings','sampling-settings':'Sampling settings','data-settings':'Data settings',about:'About',sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',boxes:'Scan sample boxes',tests:'Test management',data:'Data management'}[page];return `<div class="top"><div class="top-inner"><div class="top-name">${(page==='boxes'||page==='tests'||page==='data')?'<button type="button" class="box-back" data-action="goto-session" aria-label="Back to Session management">‹</button>':page==='session'?'<button type="button" class="box-back" data-action="goto-sessions" aria-label="Back to Sampling sessions">‹</button>':''}${name}</div><div class="top-actions"><span class="top-save" id="save-state">${pendingSave?'NOT SAVED':'SAVED'}</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button></div></div></div><div class="farm-strip">${page==='sessions'?'POST-MILKING · SESSION OVERVIEW':safe(data.site)+' · '+(page==='session'||page==='boxes'?'SESSION '+safe(data.session):'HERD '+safe(data.herd))}</div>`;}
+function header(){
+ const names={signin:'Sign in',account:'DIY account',site:'DIY site','new-session-flow':'Create session',
+ 'session-created':'Session created','animal-records':'Animal records','session-details':'Session details',
+ settings:'Settings','sampling-settings':'Sampling settings','data-settings':'Data settings',about:'About',
+ sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',
+ issues:'Issues','animal-detail':'Animal details',boxes:'Scan sample boxes',tests:'Test management',data:'Data management'};
+ const backs={account:'goto-sessions',site:'goto-account',settings:'goto-sessions',
+ 'sampling-settings':'goto-settings','data-settings':'goto-settings',about:'goto-settings',
+ 'new-session-flow':'goto-sessions','session-created':'goto-sessions','animal-records':'goto-sessions',
+ 'session-details':'goto-session',session:'goto-sessions',issues:'goto-session','animal-detail':'goto-issues',
+ boxes:'goto-session',tests:'goto-session',data:'goto-session'};
+ const back=backs[page];
+ const arrow=back?'<button type="button" class="box-back" data-action="'+back+'" aria-label="Back">‹</button>':'';
+ const actions=page==='signin'?'':'<span class="top-save" id="save-state">'+(pendingSave?'NOT SAVED':'SAVED')+'</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button>';
+ const farmLabel=['signin','account','site','settings','sampling-settings','data-settings','about','sessions','new-session-flow'].includes(page)
+  ?safe(demoAccount.farm)+' · DEMO':safe(data.site)+' · SESSION '+safe(data.session);
+ return '<div class="top"><div class="top-inner"><div class="top-name">'+arrow+safe(names[page]||'Milk Sampling')+'</div><div class="top-actions">'+actions+'</div></div></div><div class="farm-strip">'+farmLabel+'</div>';
+}
 function stage(number,title,state,content='',current=false){return `<section class="stage ${current?'current':state==='Complete'?'complete':''}">${current?'<span class="tinycap">CURRENT · NEXT STEP</span>':''}<div class="stage-row"><span class="stage-num">${state==='Complete'?'✓':number}</span><span class="stage-title">${safe(title)}</span><span class="stage-state ${state==='Complete'?'done':''}">${safe(state)}</span></div>${content}</section>`;}
 function detail(k,v){return `<div><span class="tinycap">${safe(k)}</span><div class="detail-value">${safe(v)}</div></div>`;}
 const TEST_TYPES=['JOHNES','BVD','PAG','NEO'];
@@ -563,10 +580,13 @@ function applyAnimalSwap(animalUid,line){
  // are deliberately not touched by changing its animal.
  store();return true;
 }
-function animalsScreen(){const chosen=animals().filter(a=>filter==='all'||filter==='linked'&&a.sample||filter==='awaiting'&&!a.sample&&!a.noSampleReason||filter==='no-sample'&&a.noSampleReason);
- const buttons=['all','awaiting','linked','no-sample'].map(key=>`<button type="button" class="pill ${filter===key?'active':''}" data-action="filter" data-filter="${key}">${safe(key.toUpperCase())}</button>`).join('');
- const html=`<div class="pillrow">${buttons}</div><div class="section-head"><strong>ANIMAL LIST · ${chosen.length}</strong></div><div>${chosen.map(a=>animalCard(a)).join('')||'<div class="empty">No animals in this view.</div>'}</div><p class="hint">Tap an animal to edit, remove a link or mark No sample.</p>`;
- return [html,btn('BACK TO LINKING','goto-linking','secondary wide')];}
+function animalsScreen(){
+ const chosen=animals().filter(a=>(filter==='all'||filter==='linked'&&a.sample||filter==='awaiting'&&!a.sample&&!a.noSampleReason||filter==='no-sample'&&a.noSampleReason||filter==='issues'&&(dupLines().has(a.line)||a.sample&&duplicateSampleIds().has(a.sample)))&&
+  (!animalListQuery||a.line.includes(animalListQuery)||String(a.sample||'').includes(animalListQuery)));
+ const buttons=['all','awaiting','linked','no-sample','issues'].map(key=>'<button type="button" class="pill '+(filter===key?'active':'')+'" data-action="filter" data-filter="'+key+'">'+safe(key.toUpperCase())+'</button>').join('');
+ const cards=chosen.map(a=>filter==='issues'?'<button class="journey-issue-row warning" data-action="issue-animal" data-uid="'+safe(a.uid)+'"><b>'+safe(a.line)+'</b><span>'+safe(a.sample||'No sample')+'</span><strong>DETAILS ›</strong></button>':animalCard(a)).join('');
+ return ['<div class="pillrow">'+buttons+'</div><input class="input" type="search" id="animals-search" placeholder="Search line or sample ID" value="'+safe(animalListQuery)+'"><div class="section-head"><strong>ANIMALS · '+chosen.length+'</strong></div><div>'+ (cards||'<div class="empty">No animals in this view.</div>')+'</div><p class="hint">Tap an animal to review its sampling record. Issues can be resolved from the Issues screen.</p>',btn('SESSION MANAGEMENT','goto-session','secondary wide')];
+}
 // UI-39: Sample Boxes states in mockups 4.0.9, 4.0.10 and 4.0.11.
 // The manual box-number entry is an intentional extra to the mockup.
 function boxListMarkup(){
@@ -937,9 +957,9 @@ function openModal(name,which='',options={}){
  if(name==='herd-picker')html=HerdDemo.picker();
  if(name==='herd-yield')html=HerdDemo.yieldMarkup(animal);
  if(name==='herd-catalog')html=HerdDemo.catalog();
- if(name==='no-sample'&&animal)html=`<h2>No sample: ${safe(animal.line)}</h2><label class="field-label">REASON (OPTIONAL)</label><select class="input" id="no-sample-reason"><option>Not sampled</option><option>Animal absent</option><option>Sample lost</option><option>Insufficient milk</option><option>Other</option></select><div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','save-no-sample','secondary')}</div>`;
- if(name==='confirm-linking')html=`<h2>All samples linked?</h2><p class="hint">${waiting().length?`${waiting().length} animals are still awaiting samples. Link them or mark them as No sample before confirming.`:'All animals have been dealt with. Confirm this stage to continue to sample boxes.'}</p>${dupLines().size?`<div class="notice warning">Duplicate animal line numbers need resolving first.</div>`:''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
- if(name==='confirm-close')html=`<h2>Close sampling session?</h2><p class="hint">Closing makes this session read-only. Data is not sent to NMR. Export the JSON if you need a copy.</p><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('CLOSE SESSION','do-close','danger')}</div>`;
+ if(name==='no-sample'&&animal)html=`<h2>No sample: ${safe(animal.line)}</h2><label class="field-label">REASON (OPTIONAL)</label><select class="input" id="no-sample-reason"><option>Not sampled</option><option>Dry</option><option>Sold</option><option>Antibiotics</option><option>Animal absent</option><option>Sample lost</option><option>Insufficient milk</option><option>Other</option></select><div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','save-no-sample','secondary')}</div>`;
+ if(name==='confirm-linking')html=`<h2>All samples linked?</h2><p class="hint">${waiting().length?`${waiting().length} animals are still awaiting samples. Link them or mark them as No sample before confirming.`:'All animals have been dealt with. Confirm this stage to continue to sample boxes.'}</p>${blockingIssues()?`<div class="notice warning">Duplicate animal records or Sample IDs must be resolved first.</div>`:''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
+ if(name==='confirm-close')html=`<h2>Close sampling session?</h2><p class="hint">Closing makes sample linking and boxes read-only. Tests remain editable until laboratory receipt. This prototype does not send data to NMR; use Data Management to export JSON.</p><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('CLOSE SESSION','do-close','danger')}</div>`;
  $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':'Post-milking'}">${name==='capture'||name==='herd-picker'||name==='herd-yield'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
  const focus=({ 'add-animal':'new-line',manual:'manual-id'})[name];if(focus){const input=$('#'+focus);if(input)input.focus({preventScroll:true});}if(name==='capture'&&!options.skipCamera)startCamera();if(name==='camera-settings')CameraSettings.start();
 }
@@ -978,7 +998,7 @@ function downloadCompiledJSON(){
 async function importJSON(file){if(!file)return;try{const text=await file.text(),parsed=JSON.parse(text);if(!Array.isArray(parsed.animals)||!parsed.session)throw Error('Not a sampling session export');if(!confirm('Import this session? It will add this session without deleting existing sessions.'))return;data=normaliseRecord(parsed);if(sessions.some(x=>x.session===data.session))data.session+='-IMPORTED';activeRecordId=data.recordId;while(sessions.some(x=>x.recordId===activeRecordId)){data.recordId=uid();activeRecordId=data.recordId;}sessions.push(data);store();await navigate('session');toast('Session imported');}catch(e){toast('Unable to import: '+e.message)}}
 function doAction(action,button){
  switch(action){
- case 'menu':openModal('menu');break;
+ case 'menu':if(!demoAuth)return;openModal('menu');break;
  case 'demo-sign-in':{
   demoAccount.role=$('#demo-signin-role')?.value==='sampler'?'Sampling operator':'Farmer · DIY';
   saveDemoAccount();demoAuth=true;
@@ -1181,7 +1201,7 @@ function doAction(action,button){
  case 'goto-session':navigate('session');break;
  case 'boxes-done':if(data.phase==='closed'||(data.boxes.length>0&&data.boxesConfirmed))navigate('session');else toast('Scan at least one box and confirm all boxes are scanned.');break;
  case 'goto-linking':navigate('linking',{autoCamera:true});break;
- case 'goto-animals':filter='all';navigate('animals');break;
+ case 'goto-animals':filter='all';animalListQuery='';navigate('animals');break;
  case 'goto-boxes':if(data.phase!=='confirmed'&&data.phase!=='closed')return toast('Confirm sample linking before scanning boxes');if(blockingIssues())return toast('Resolve blocking duplicate issues before scanning boxes.');navigate('boxes',{autoCamera:data.phase!=='closed'});break;
  case 'show-linked':filter='linked';navigate('animals');break;
  case 'filter':filter=button.dataset.filter;render();break;
@@ -1251,6 +1271,12 @@ function doAction(action,button){
 document.addEventListener('click',e=>{const button=e.target.closest('[data-action]');if(!button||button.disabled)return;if(button.dataset.action==='backdrop'&&button!==e.target)return;e.preventDefault();doAction(button.dataset.action,button)});
 document.addEventListener('input',e=>{
  const el=e.target;
+ if(el.id==='animals-search'&&page==='animals'){
+  animalListQuery=el.value;
+  const box=$('#main-scroll'),top=box?.scrollTop||0;
+  render();const next=$('#animals-search');if(next){next.focus();next.setSelectionRange?.(animalListQuery.length,animalListQuery.length);}
+  if(box)box.scrollTop=top;return;
+ }
  if(el.id==='swap-search'&&modal==='swap-animal'){
   swapQuery=el.value;
   const next=swapPickerMarkup();
