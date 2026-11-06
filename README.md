@@ -1,32 +1,47 @@
-# Post-Milking Sampling — End-to-End Local Demo v1.6.1
+# Post-Milking Sampling — End-to-End Local Demo v1.8.1
 
 A **fresh, consolidated, mobile-first application**, designed for a **new GitHub repository and a new Vercel project**. It follows the original post-milking UI specification's main journey (Session Management → add animals → check order → continuous QR linking → confirm → scan boxes → close). It is a functional prototype, not an integration with NMR.
 
+
+## v1.8.1 — UI-48 sign-in and consolidated usability changes
+
+### v1.8.1
+- Demo access now follows **UI-48 / mockup 4.9.1**: navy signed-out header, logo placeholder, NMR sign-in copy, sample email/password display, Help link, This Device panel and fixed **Sign In** action.
+- The role selector is removed. Demo sign-in does not collect, authenticate, transmit or save credentials. The sample password is display-only.
+- Sign-out returns to the new mockup-style signed-out screen. Account and session details are hidden until entry.
+
+### v1.8.0
+- Account and Site no longer carry inappropriate **DIY** labels. DIY describes a service level, not the person or location.
+- Built-in sample account now has **three herds**; sites are linked only to those herds.
+- Create Session uses a smaller date field, with sampler instructions and the Tests heading/explanatory text removed.
+- **Record yields** in Parlour Setup controls whether UI-24 appears and whether any yield is entered/generated in open sessions. It is no longer overridden by individual session edits.
+- Fixed the parlour-type select's height. The Main Menu is a **right-side drawer** styled like UI-33, with **Settings** as a separate top-level section.
+- Closed records are read-only. A **simulated laboratory-receipt step** locks test edits once recorded.
 
 ## v1.6.1 — End-to-end demonstration based on v2.1 mockups
 
 This release expands the existing mobile-first post-milking workflow without replacing its working QR/Data Matrix/box camera code. All backend-dependent operations are **local demonstrations only**.
 
 ### Account and site entry (UI-48, UI-60, UI-61)
-- On a new browser installation, **Enter Demo App** is the first screen. The role selection is simulated, with no password or real authentication. It remains signed in on the current browser until **Sign Out**.
-- **DIY Account** shows a fictional farmer, contact, invoice address, demo herd numbers and parlour sites. Site views support adding/editing a site, parlour type/configuration, herd linkage and yield requirement. A herd already linked to another site is not selectable. Contact edits persist locally.
+- On a new browser installation, the **UI-48 signed-out screen** appears first. The displayed sample credentials are non-editable and there is no user-type selector or real authentication. It remains signed in locally until **Sign Out**.
+- **Account** shows a sample farmer, contact, invoice address, three example herd numbers and parlour sites. Site views support adding/editing a site, parlour type/configuration, herd linkage and yield requirement. A herd already linked to another site is not selectable. Contact edits persist locally.
 - Every built-in **name, farm, address, postcode, email and telephone** is invented. Examples use `@example.test`, reserved sample telephone number `01632 960321`, and deliberately fictional `ZZ` postal codes. The app does **not** ship the original mockup's contact details.
 
 ### Sessions (UI-50, UI-52, UI-54, UI-46)
 - **Sampling Sessions** now offers sort/filter by site and status and links to the multi-step **Create Session** flow.
-- The creation flow follows **Location → Details → Review → Created**. Only linked site/herd combinations are offered; date, milking and sampler instructions are captured. The generated Session ID is clearly **local**, not NMR-issued.
+- The creation flow follows **Location → Details → Review → Created**. Only linked site/herd combinations are offered; date and milking are captured. The generated Session ID is clearly **local**, not NMR-issued.
 - **Animal records on this device** is an optional, non-blocking review. **Refresh Demo Records** changes only a local demo timestamp; it is not an NMR download.
-- **Session Details** is a dedicated screen. Session ID and location are fixed once created; milking times, yield requirement and instructions are editable before closure.
+- **Session Details** is a dedicated screen. Session ID and location are fixed once created; milking times are editable before closure; yield recording is controlled by Parlour Setup.
 
 ### Sampling exceptions and closure (UI-23, UI-14, UI-12, UI-20, UI-24, UI-35, UI-38–40)
 - **Issues** identifies duplicate animal-line records and duplicate Sample IDs as **blocking**. Unexplained No Sample records are **non-blocking** and can be given a reason later.
 - **Animal Details** shows the selected sampling record, permits changing its animal from the demo herd, amending yields, unlinking an incorrect sample or linking an awaiting sample. **Swap Animal retains the sample ID, yield and tests**. If a swap creates another duplicate, the newly detected issue remains visible until resolved.
 - **Sample Boxes** remains independent of Add Tests. It unlocks only after sample linking is confirmed and blocking issues are resolved. No Sample reasons are optional.
-- Closing a session locks physical sample linking and boxes. **Johnes/BVD/PAG/Neo tests remain editable** after closure because laboratory receipt is not represented in this prototype.
+- Closing a session locks physical sample linking and boxes. **Johnes/BVD/PAG/Neo tests remain editable** after closure until the simulated laboratory receipt is recorded.
 - The existing fast milk-pot decoder and box scanner have not been changed.
 
 ### Navigation and Settings (UI-33, UI-62–66)
-- Main menu groups **Account**, **Sessions**, **Sampling** and **Data**. Settings has overview, Sampling, existing Camera Settings, Data and About.
+- Main menu has independent **Sessions**, **Sample Capture**, **Account**, **Data** and **Settings** sections. Settings has overview, Sampling, existing Camera Settings, Data and About.
 - Basic sampling/data preferences are locally persisted. Options intended for other sampling methods or future hardware are shown as prototype preferences, **not** a claim of implemented external scanner or NMR connectivity.
 - Data Management remains **separate** from the unchanged Sync & Consolidation step. Exporting JSON records a compiled snapshot and matching simulated send timestamp. The underlying JSON can be downloaded. Nothing is actually submitted to NMR.
 
@@ -36,7 +51,7 @@ This release expands the existing mobile-first post-milking workflow without rep
 - An independently sanitised copy of the v2.1 design reference can be shared in place of the original mockup. The original uploaded design file is not changed.
 
 ### Boundaries
-This is a locally functional, UI-complete **demonstration path**, not a live integrated NMR application. Real identity/device authorisation, session creation through NMR, central animal-data delivery, multi-device consolidation, confirmed submission/receipt, lab-receipt locking and automatic validation require backend services not provided by this repository. Batch capture and other future features from v2.1 are also excluded.
+This is a locally functional, UI-complete **demonstration path**, not a live integrated NMR application. Real identity/device authorisation, session creation through NMR, central animal-data delivery, multi-device consolidation, confirmed submission/receipt, real lab-receipt integration and automatic validation require backend services not provided by this repository. Batch capture and other future features from v2.1 are also excluded.
 
 ## What is different from the old builds
 
