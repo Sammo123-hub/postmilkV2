@@ -157,15 +157,15 @@ function signInScreen(){
 function startDemoWizard(){
  const site=demoAccount.sites[0];
  wizardDraft={siteId:site?.id||'',herd:site?.herds?.[0]||'',date:new Date().toISOString().slice(0,10),milking:'AM',
-  type:'Milk quality testing',instructions:'',extraTests:[]};
+  type:'Milk quality testing'};
  wizardStep=1;
  navigate('new-session-flow');
 }
 function wizardSite(){return demoAccount.sites.find(s=>s.id===wizardDraft?.siteId)||null}
 function wizardSaveDetails(){
- const date=$('#wizard-date')?.value||'',milking=$('#wizard-milking')?.value||'',instructions=$('#wizard-instructions')?.value.trim()||'';
+ const date=$('#wizard-date')?.value||'',milking=$('#wizard-milking')?.value||'';
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!['AM','PM','AM + PM'].includes(milking))return false;
- wizardDraft.date=date;wizardDraft.milking=milking;wizardDraft.instructions=instructions;
+ wizardDraft.date=date;wizardDraft.milking=milking;
  return true;
 }
 function wizardScreen(){
@@ -179,15 +179,14 @@ function wizardScreen(){
   html='<div class="journey-card"><div class="tinycap">FARM · FIXED FOR THIS DEMO DEVICE</div><strong>'+safe(demoAccount.farm)+'</strong></div><section class="journey-card"><div class="tinycap">PARLOUR SITE</div>'+siteOptions+'</section><section class="journey-card"><div class="tinycap">HERD AT THIS SITE</div>'+herdOptions+'</section>';
   foot=btn('CANCEL','wizard-cancel','outline')+btn('NEXT · DETAILS','wizard-next','primary',site&&wizardDraft.herd?'':'disabled');
  }else if(wizardStep===2){
-  html='<section class="journey-card"><div class="tinycap">WHEN</div><label class="field-label">SAMPLING DATE</label><input id="wizard-date" type="date" class="input" value="'+safe(wizardDraft.date)+'">'+
+  html='<section class="journey-card"><div class="tinycap">WHEN</div><label class="field-label">SAMPLING DATE</label><input id="wizard-date" type="date" class="input wizard-date" value="'+safe(wizardDraft.date)+'">'+
    '<label class="field-label">MILKING</label><select id="wizard-milking" class="input">'+['AM','PM','AM + PM'].map(x=>'<option '+(wizardDraft.milking===x?'selected':'')+'>'+x+'</option>').join('')+'</select>'+
    '<div class="tinycap">SESSION TYPE</div><strong>Milk quality testing</strong><p class="hint">Disease-test and BVD ear-tag session creation are not connected in this prototype.</p>'+
-   '<label class="field-label">INSTRUCTIONS FOR SAMPLER</label><textarea id="wizard-instructions" class="input" rows="3">'+safe(wizardDraft.instructions)+'</textarea>'+
-   '<div class="tinycap">TESTS</div><p class="hint">Tests can be assigned to linked sample pots during or after sampling, independently of Sample Boxes.</p></section>';
+   '</section>';
   foot=btn('BACK','wizard-back','outline')+btn('NEXT · REVIEW','wizard-next','primary');
  }else if(wizardStep===3){
   html='<section class="journey-card"><div class="journey-card-head"><strong>LOCATION</strong>'+btn('EDIT','wizard-edit-location','outline')+'</div><div class="journey-plain-row">Farm <strong>'+safe(demoAccount.farm)+'</strong></div><div class="journey-plain-row">Parlour <strong>'+safe(site?.name||'—')+'</strong></div><div class="journey-plain-row">Herd <strong>'+safe(wizardDraft.herd)+'</strong></div></section>'+
-   '<section class="journey-card"><div class="journey-card-head"><strong>SESSION</strong>'+btn('EDIT','wizard-edit-details','outline')+'</div><div class="journey-plain-row">Date <strong>'+safe(shortDate(wizardDraft.date))+'</strong></div><div class="journey-plain-row">Milking <strong>'+safe(wizardDraft.milking)+'</strong></div><div class="journey-plain-row">Type <strong>Milk quality testing</strong></div><p>'+safe(wizardDraft.instructions||'No instructions')+'</p></section><p class="hint">CREATE makes a local demo session. No ID is requested from NMR.</p>';
+   '<section class="journey-card"><div class="journey-card-head"><strong>SESSION</strong>'+btn('EDIT','wizard-edit-details','outline')+'</div><div class="journey-plain-row">Date <strong>'+safe(shortDate(wizardDraft.date))+'</strong></div><div class="journey-plain-row">Milking <strong>'+safe(wizardDraft.milking)+'</strong></div><div class="journey-plain-row">Type <strong>Milk quality testing</strong></div></section><p class="hint">CREATE makes a local demo session. No ID is requested from NMR.</p>';
   foot=btn('BACK','wizard-back','outline')+btn('CREATE SESSION','wizard-create','primary');
  }
  return ['<div class="journey-page"><div class="tinycap">AD HOC SESSION · '+safe(demoAccount.farm)+'</div><h2>Create sampling session</h2>'+top+html+'</div>','<div class="journey-actions">'+foot+'</div>'];
@@ -203,7 +202,7 @@ function animalRecordsScreen(){
 function sessionDetailsScreen(){
  const editable=data.phase!=='closed';
  return ['<div class="journey-page"><h2>Session details</h2><section class="journey-card"><div class="tinycap">SESSION ID · FIXED</div><strong>'+safe(data.session)+'</strong><div class="tinycap">SITE / FARM</div><strong>'+safe(data.site)+'</strong><div class="tinycap">HERD</div><strong>'+safe(data.herd)+'</strong><div class="tinycap">ORGANISATION</div><strong>'+safe(data.org)+'</strong><div class="tinycap">METHOD</div><strong>Post-milking</strong><div class="tinycap">DATE</div><p>'+safe(shortDate(data.sampleDate))+'</p><div class="tinycap">MILKING</div><p>'+safe(data.milking||'Not specified')+'</p></section>'+
-  (editable?'<section class="journey-card"><label class="field-label">MILKING START (HH:MM)</label>'+timeInput('edit-start',data.start)+'<label class="field-label">MILKING END (HH:MM)</label>'+timeInput('edit-end',data.end)+'<label class="journey-check"><input type="checkbox" id="edit-yields" '+(data.yields?'checked':'')+'> Yields required</label><label class="field-label">INSTRUCTIONS</label><textarea class="input" id="edit-instructions" rows="3">'+safe(data.instructions||'')+'</textarea></section>':'<p class="hint">This sampling session is closed. Details can no longer be edited.</p>')+
+  (editable?'<section class="journey-card"><label class="field-label">MILKING START (HH:MM)</label>'+timeInput('edit-start',data.start)+'<label class="field-label">MILKING END (HH:MM)</label>'+timeInput('edit-end',data.end)+'<div class="journey-plain-row">Record yields <strong>'+(recordYields()?'Yes':'No')+' · Parlour Setup</strong></div></section>':'<p class="hint">This sampling session is closed. Details can no longer be edited.</p>')+
   '<p class="hint">Session ID, farm and herd cannot be changed after the session is created.</p></div>',editable?'<div class="journey-actions">'+btn('CANCEL','goto-session','outline')+btn('SAVE DETAILS','save-session-details','secondary')+'</div>':btn('SESSION MANAGEMENT','goto-session','outline wide')];
 }
 function settingsOverviewScreen(){
@@ -1138,7 +1137,7 @@ function doAction(action,button){
   const id=newSessionId();
   data=normaliseRecord({...fresh(),org:demoAccount.farm,site:site.name,herd:wizardDraft.herd,session:id,
    sampleDate:wizardDraft.date,milking:wizardDraft.milking,sessionType:wizardDraft.type,
-   instructions:wizardDraft.instructions,siteId:site.id,animalsHeld:true,
+   siteId:site.id,animalsHeld:true,
    animalDataUpdatedAt:demoPrefs.downloadAuto?timestamp():'',yields:site.yields});
   activeRecordId=data.recordId;sessions.push(data);store();wizardDraft=null;
   navigate('session-created');break;
@@ -1150,8 +1149,7 @@ function doAction(action,button){
   if(data.phase==='closed')return toast('Closed session details are read-only.');
   const start=normalTime($('#edit-start')?.value),end=normalTime($('#edit-end')?.value);
   if(($('#edit-start')?.value&&!start)||($('#edit-end')?.value&&!end))return toast('Use HH:MM for milking times.');
-  data.start=start;data.end=end;data.yields=!!$('#edit-yields')?.checked;
-  data.instructions=$('#edit-instructions')?.value.trim()||'';
+  data.start=start;data.end=end;data.yields=recordYields();
   store();navigate('session');break;
  }
 
