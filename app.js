@@ -900,12 +900,38 @@ function openModal(name,which='',options={}){
  stopCamera();modal=name;selectedUid=which||'';
  const animal=animals().find(a=>a.uid===selectedUid);
  let html='';
- if(name==='menu')html=`<h2>Main menu</h2><span class="tinycap">DEMO BUILD · VERSION ${VERSION}</span>${[
- ['ACCOUNT',[['goto-account','DIY Account'],['goto-settings','Settings']]],
- ['SESSIONS',[['goto-sessions','Sampling sessions'],['new-session','Create ad hoc session'],['goto-session','Current session']]],
- ['SAMPLING',[['goto-linking','Post-milking linking'],['goto-animals','Animals'],['goto-issues','Issues'],['goto-tests','Test management'],['goto-boxes','Sample boxes']]],
- ['DATA',[['goto-data','Data management'],['view-test-herd','Demo herd · 70 animals']]]
- ].map(([section,actions])=>'<div class="tinycap journey-menu-heading">'+section+'</div>'+actions.map(([key,title])=>'<button class="menu-row" data-action="'+key+'">'+title+'<span>›</span></button>').join('')).join('')}<div class="notice">Fictional account. Data stays on this device; NMR is not connected.</div>${btn('LOAD DEMO ANIMALS','load-demo','outline wide')}${btn('SIGN OUT','demo-sign-out','outline wide')}${btn('RESET DEMO SESSION','reset','danger wide')}`;
+ if(name==='menu'){
+  // UI-33: right-hand menu drawer with navy header, plain rows and blue section labels.
+  const sections=[
+   ['SESSIONS',[
+    ['goto-sessions','Sampling sessions','All sampling sessions'],
+    ['new-session','Create session','Create a new sampling session'],
+    ['goto-session','Session management','Active sampling session']]],
+   ['SAMPLE CAPTURE',[
+    ['goto-linking','Post-milking linking','Link animals and sample pots'],
+    ['goto-animals','Animals','All, linked, awaiting, issues'],
+    ['goto-issues','Issues','Review sampling exceptions'],
+    ['goto-tests','Test management','Add tests to sampled animals'],
+    ['goto-boxes','Sample boxes','Scan and confirm boxes']]],
+   ['ACCOUNT',[
+    ['goto-account','Account','Contacts, sites and herds']]],
+   ['DATA',[
+    ['goto-data','Data management','Imports, exports and session data'],
+    ['view-test-herd','Herd catalogue','View animal records']]],
+   ['SETTINGS',[
+    ['goto-settings','Settings','Sampling, camera, data and about']]]
+  ];
+  html='<div class="menu-panel-header"><strong>Menu</strong><button type="button" class="menu-panel-close" data-action="modal-close" aria-label="Close menu">×</button></div>'+
+   '<div class="menu-panel-scroll">'+sections.map(([heading,items])=>
+    '<div class="menu-section-title">'+heading+'</div>'+
+    items.map(([action,title,subtitle])=>'<button type="button" class="menu-nav-item" data-action="'+action+'"><span><strong>'+title+'</strong><small>'+subtitle+'</small></span><span class="menu-chevron" aria-hidden="true">›</span></button>').join('')
+   ).join('')+
+   '<div class="menu-section-title">DEMO TOOLS</div>'+
+   '<button class="menu-nav-item" data-action="load-demo"><span><strong>Load demo animals</strong></span><span class="menu-chevron">›</span></button>'+
+   '<button class="menu-nav-item" data-action="reset"><span><strong>Reset current session</strong></span><span class="menu-chevron">›</span></button>'+
+   '</div><div class="menu-panel-footer"><button type="button" data-action="demo-sign-out">Sign out</button></div>';
+ }
+
  if(name==='new-session')html='<h2>New sampling session</h2><p class="hint">Create a separate sampling session; existing sessions will be preserved.</p>'+
   '<label class="field-label">FARM / SITE</label><input class="input" id="new-session-site" value="'+safe(data.site)+'">'+
   '<label class="field-label">HERD NUMBER</label><input class="input" id="new-session-herd" value="'+safe(data.herd)+'">'+
@@ -982,7 +1008,7 @@ function openModal(name,which='',options={}){
  if(name==='confirm-linking')html=`<h2>All samples linked?</h2><p class="hint">${waiting().length?`${waiting().length} animals are still awaiting samples. Link them or mark them as No sample before confirming.`:'All animals have been dealt with. Confirm this stage to continue to sample boxes.'}</p>${blockingIssues()?`<div class="notice warning">Duplicate animal records or Sample IDs must be resolved first.</div>`:''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
  if(name==='confirm-lab-receipt')html='<h2>Simulate laboratory receipt?</h2><p class="hint">This marks samples received at the laboratory for this local demo. Test assignments become permanently read-only. No actual NMR or laboratory service is connected.</p><div class="buttons">'+btn('CANCEL','modal-close','outline')+btn('CONFIRM DEMO RECEIPT','confirm-lab-receipt','danger')+'</div>';
  if(name==='confirm-close')html=`<h2>Close sampling session?</h2><p class="hint">Closing makes sample linking and boxes read-only. Tests remain editable until laboratory receipt. This prototype does not send data to NMR; use Data Management to export JSON.</p><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('CLOSE SESSION','do-close','danger')}</div>`;
- $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':'Post-milking'}">${name==='capture'||name==='herd-picker'||name==='herd-yield'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
+ $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':name==='menu'?'menu-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':name==='menu'?'menu-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':name==='menu'?'Main menu':'Post-milking'}">${name==='menu'||name==='capture'||name==='herd-picker'||name==='herd-yield'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
  const focus=({ 'add-animal':'new-line',manual:'manual-id'})[name];if(focus){const input=$('#'+focus);if(input)input.focus({preventScroll:true});}if(name==='capture'&&!options.skipCamera)startCamera();if(name==='camera-settings')CameraSettings.start();
 }
 function closeModal(resume=true){clearTimeout(captureCompletionTimer);captureCompletionTimer=null;captureCompleting=false;if(modal==='capture'||modal==='camera-settings')stopCamera();modal='';selectedUid='';$('#modal-root').replaceChildren();if(resume&&((page==='linking'&&data.phase==='linking'&&waiting().length)||page==='boxes'))startCamera();}
