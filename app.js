@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.8.12';
+const VERSION='1.8.13';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -268,6 +268,10 @@ function aboutScreen(){
  return ['<div class="journey-page"><h2>About</h2><section class="journey-card"><div class="journey-plain-row">Device <strong>PM-DEMO-0142</strong></div><div class="journey-plain-row">Authorisation <strong>Local demo</strong></div><div class="journey-plain-row">NMR connection <strong>Not connected</strong></div><div class="journey-plain-row">App version <strong>'+safe(VERSION)+'</strong></div></section><p class="hint">No real sync is available; camera scanning and local JSON files remain usable.</p></div>',btn('DONE','goto-settings','secondary wide')];
 }
 let data=load(),sessions=readSessionRegistry(data),activeRecordId='',page=demoAuth?'sessions':'signin',modal='',selectedUid='',filter='all';
+// Settings is accessible from the menu on any page. Its Back button must
+// return to the page that opened it, not to a fixed Sessions destination.
+let settingsReturnPage='sessions',settingsReturnScrollTop=0,settingsReturnCameraLive=false,menuCameraWasLive=false;
+const isSettingsPage=value=>['settings','sampling-settings','data-settings','about'].includes(value);
 try{activeRecordId=localStorage.getItem(ACTIVE_SESSION_STORAGE)||''}catch{}
 if(!sessions.some(x=>x.recordId===activeRecordId))activeRecordId=sessions[0]?.recordId||'';
 if(activeRecordId)data=sessions.find(x=>x.recordId===activeRecordId);
@@ -363,7 +367,7 @@ function header(){
  settings:'Settings','sampling-settings':'Sampling settings','data-settings':'Data settings',about:'About',
  sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',
  issues:'Issues','animal-detail':'Animal details',boxes:'Scan sample boxes',tests:'Test management',data:'Data management'};
- const backs={account:'goto-sessions',site:'goto-account',settings:'goto-sessions',
+ const backs={account:'goto-sessions',site:'goto-account',settings:'settings-back',
  'sampling-settings':'goto-settings','data-settings':'goto-settings',about:'goto-settings',
  'new-session-flow':'goto-sessions','animal-records':'goto-sessions',
  'session-details':'goto-session',session:'goto-sessions',issues:'goto-session','animal-detail':'goto-issues',
@@ -1033,6 +1037,16 @@ async function navigate(to,{autoCamera=false}={}){
  await stopCamera();if(to!=='sessions')sessionListCreatedId='';page=to;modal='';$('#modal-root').replaceChildren();render();
  if(autoCamera&&((to==='linking'&&data.phase==='linking'&&waiting().length)||to==='boxes'))startCamera();
 }
+async function returnFromSettings(){
+ const target=settingsReturnPage;
+ const previousScroll=settingsReturnScrollTop;
+ const wasScanning=settingsReturnCameraLive;
+ // Clear saved origin before navigating, so the next menu visit starts clean.
+ settingsReturnPage='sessions';settingsReturnScrollTop=0;settingsReturnCameraLive=false;
+ await navigate(target,{autoCamera:wasScanning});
+ const main=$('#main-scroll');
+ if(main)main.scrollTop=previousScroll;
+}
 function openModal(name,which='',options={}){
  if(name==='herd-yield'&&!recordYields())name='herd-picker';
  clearTimeout(captureCompletionTimer);captureCompletionTimer=null;captureCompleting=false;
@@ -1191,7 +1205,7 @@ function doAction(action,button){
  if(data.phase==='closed'&&physicalEdits.includes(action)){toast('This sampling session is closed and read-only.');return;}
  if(testsLocked()&&['toggle-add-test','save-add-test','test-save','test-select-all'].includes(action)){toast('Tests locked: laboratory receipt was simulated.');return;}
  switch(action){
- case 'menu':if(!demoAuth)return;openModal('menu');break;
+ case 'menu':if(!demoAuth)return;menuCameraWasLive=!!scanner||cameraState==='starting'||cameraState==='live';openModal('menu');break;
  case 'demo-password-toggle':{
   const value=$('#demo-signin-password'),toggle=$('#demo-password-toggle');
   if(!value||!toggle)return;
@@ -1211,7 +1225,14 @@ function doAction(action,button){
  }
  case 'demo-sign-out':demoAuth=false;try{localStorage.removeItem(DEMO_AUTH_STORAGE)}catch{}navigate('signin');break;
  case 'goto-account':navigate('account');break;
- case 'goto-settings':navigate('settings');break;
+ case 'goto-settings':
+  if(!isSettingsPage(page)){
+   settingsReturnPage=page;
+   settingsReturnScrollTop=$('#main-scroll')?.scrollTop||0;
+   settingsReturnCameraLive=menuCameraWasLive;
+  }
+  navigate('settings');break;
+ case 'settings-back':void returnFromSettings();break;
  case 'settings-go':if(button.dataset.page==='camera-settings')openModal('camera-settings');else navigate(button.dataset.page);break;
  case 'edit-demo-contact':openModal('edit-demo-contact');break;
  case 'save-demo-contact':{
