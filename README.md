@@ -1,6 +1,42 @@
-# Post-Milking Sampling — Clean Build v1.1.0
+# Post-Milking Sampling — End-to-End Local Demo v1.6.1
 
 A **fresh, consolidated, mobile-first application**, designed for a **new GitHub repository and a new Vercel project**. It follows the original post-milking UI specification's main journey (Session Management → add animals → check order → continuous QR linking → confirm → scan boxes → close). It is a functional prototype, not an integration with NMR.
+
+
+## v1.6.1 — End-to-end demonstration based on v2.1 mockups
+
+This release expands the existing mobile-first post-milking workflow without replacing its working QR/Data Matrix/box camera code. All backend-dependent operations are **local demonstrations only**.
+
+### Account and site entry (UI-48, UI-60, UI-61)
+- On a new browser installation, **Enter Demo App** is the first screen. The role selection is simulated, with no password or real authentication. It remains signed in on the current browser until **Sign Out**.
+- **DIY Account** shows a fictional farmer, contact, invoice address, demo herd numbers and parlour sites. Site views support adding/editing a site, parlour type/configuration, herd linkage and yield requirement. A herd already linked to another site is not selectable. Contact edits persist locally.
+- Every built-in **name, farm, address, postcode, email and telephone** is invented. Examples use `@example.test`, reserved sample telephone number `01632 960321`, and deliberately fictional `ZZ` postal codes. The app does **not** ship the original mockup's contact details.
+
+### Sessions (UI-50, UI-52, UI-54, UI-46)
+- **Sampling Sessions** now offers sort/filter by site and status and links to the multi-step **Create Session** flow.
+- The creation flow follows **Location → Details → Review → Created**. Only linked site/herd combinations are offered; date, milking and sampler instructions are captured. The generated Session ID is clearly **local**, not NMR-issued.
+- **Animal records on this device** is an optional, non-blocking review. **Refresh Demo Records** changes only a local demo timestamp; it is not an NMR download.
+- **Session Details** is a dedicated screen. Session ID and location are fixed once created; milking times, yield requirement and instructions are editable before closure.
+
+### Sampling exceptions and closure (UI-23, UI-14, UI-12, UI-20, UI-24, UI-35, UI-38–40)
+- **Issues** identifies duplicate animal-line records and duplicate Sample IDs as **blocking**. Unexplained No Sample records are **non-blocking** and can be given a reason later.
+- **Animal Details** shows the selected sampling record, permits changing its animal from the demo herd, amending yields, unlinking an incorrect sample or linking an awaiting sample. **Swap Animal retains the sample ID, yield and tests**. If a swap creates another duplicate, the newly detected issue remains visible until resolved.
+- **Sample Boxes** remains independent of Add Tests. It unlocks only after sample linking is confirmed and blocking issues are resolved. No Sample reasons are optional.
+- Closing a session locks physical sample linking and boxes. **Johnes/BVD/PAG/Neo tests remain editable** after closure because laboratory receipt is not represented in this prototype.
+- The existing fast milk-pot decoder and box scanner have not been changed.
+
+### Navigation and Settings (UI-33, UI-62–66)
+- Main menu groups **Account**, **Sessions**, **Sampling** and **Data**. Settings has overview, Sampling, existing Camera Settings, Data and About.
+- Basic sampling/data preferences are locally persisted. Options intended for other sampling methods or future hardware are shown as prototype preferences, **not** a claim of implemented external scanner or NMR connectivity.
+- Data Management remains **separate** from the unchanged Sync & Consolidation step. Exporting JSON records a compiled snapshot and matching simulated send timestamp. The underlying JSON can be downloaded. Nothing is actually submitted to NMR.
+
+### Privacy and retention
+- New demo-account fields use fictional, clearly marked test information. Previously saved sessions and any contact details manually entered in the browser are **not silently modified or deleted**.
+- To remove previously stored testing sessions, use **Camera Settings → CLEAR TEST DATA**. That action preserves camera preferences. If an older session contained any real farm/customer information, clear it explicitly or use a fresh browser profile.
+- An independently sanitised copy of the v2.1 design reference can be shared in place of the original mockup. The original uploaded design file is not changed.
+
+### Boundaries
+This is a locally functional, UI-complete **demonstration path**, not a live integrated NMR application. Real identity/device authorisation, session creation through NMR, central animal-data delivery, multi-device consolidation, confirmed submission/receipt, lab-receipt locking and automatic validation require backend services not provided by this repository. Batch capture and other future features from v2.1 are also excluded.
 
 ## What is different from the old builds
 
@@ -39,7 +75,7 @@ A **fresh, consolidated, mobile-first application**, designed for a **new GitHub
 
 ## Test the scanner on an iPhone
 
-1. Open the new site and enter times; try `0510` to confirm focus moves to End Time.
+1. Open the site, choose **Enter Demo App**, create or select a session, and enter milking times in Session Management; try `0510` to confirm Start moves focus to End.
 2. Set End Time, tap **Start Linking**.
 3. Tap **Load Demo** (or add two cows), then **Done Adding** and **Confirm Order**.
 4. If Safari asks, **Allow camera**. The same app's camera area should show a live image and the status **CAMERA LIVE**. If it doesn't start automatically, press **START CAMERA** once.
@@ -52,7 +88,7 @@ A **fresh, consolidated, mobile-first application**, designed for a **new GitHub
 ## Important prototype boundaries
 
 - Session and animal data are stored in **localStorage on the current device, browser and domain**. The new Vercel site starts fresh; saved sessions from the old site **are not transferred automatically**.
-- There is an **Export JSON** feature in the menu, and an **Import JSON** feature for a compatible session export. You can export from the old app and import into the new one if the export format is compatible; the clean app expects an `animals` array and session ID.
+- JSON import/export is now under **Main menu → Data Management**. You can export from the old app and import into the new one if the export format is compatible; the clean app expects an `animals` array and session ID.
 - No NMR integration, identity/device registration, backend syncing, invoice integration or account login.
 - Barcode decoding depends on the `html5-qrcode` library loading from a CDN; first use requires internet. The static app is not presented as offline-capable.
 - This is a demo/test app with default farm/session information. Replace those fields in Session details for your test.
