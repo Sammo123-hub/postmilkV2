@@ -6,25 +6,46 @@
 'use strict';
 const CameraSettings=(()=>{
  const KEY='postmilk-camera-preferences-v1';
- const defaults={deviceId:'auto',zoom:1,codeFormat:'qr',engine:'js'};
+ const defaults={deviceId:'auto',zoom:1,codeFormat:'dm',engine:'wasm',mode:'auto'};
  let saved={...defaults};
  try{
   const value=JSON.parse(localStorage.getItem(KEY)||'null');
   if(value&&typeof value==='object'){
+   const oldFactoryDefaults=!('mode' in value)&&value.deviceId==='auto'&&Number(value.zoom)===1&&value.codeFormat==='qr'&&value.engine==='js';
    saved.deviceId=typeof value.deviceId==='string'?value.deviceId:'auto';
-   saved.codeFormat=['qr','qr-dm','dm'].includes(value.codeFormat)?value.codeFormat:'qr';
+   saved.codeFormat=['qr','qr-dm','dm'].includes(value.codeFormat)?value.codeFormat:defaults.codeFormat;
    saved.engine=value.engine==='wasm'?'wasm':'js';
+   saved.mode=['auto','small','manual'].includes(value.mode)?value.mode:defaults.mode;
    const z=Number(value.zoom);saved.zoom=Number.isFinite(z)&&z>=.5&&z<=10?z:1;
+   // Move only the previous untouched factory preset. Preserve customised choices.
+   if(oldFactoryDefaults){saved.codeFormat='dm';saved.engine='wasm';}
   }
  }catch{}
  let zoomRange=null,zoomRequested=null,zoomBusy=false,devices=[],zoomWatchBusy=false,zoomWatchTimers=[],lastZoomRepair=0;
  const round=n=>Math.round(Number(n)*100)/100;
  const fmt=n=>round(n).toFixed(round(n)%1===0?0:2)+'×';
  function save(){try{localStorage.setItem(KEY,JSON.stringify(saved))}catch{}}
+ const modeOptions=[
+  ['auto','Automatic — recommended'],
+  ['small','Small-code optimisation (7–8 mm)'],
+  ['manual','Manual camera configuration']
+ ];
+ function modeExplanation(){
+  if(saved.mode==='small')return 'Requests a higher-resolution video feed where supported, with a tighter central scanning area. Centre the code; camera focus still depends on the phone.';
+  if(saved.mode==='manual')return 'Select a camera and hardware zoom below. The app only applies controls that the browser supports.';
+  return 'Uses the selected rear camera, normal scanning area and continuous focus when the browser supports it.';
+ }
+ function updateModeNote(){
+  const label=$('#camera-mode-note');
+  if(label)label.textContent=modeExplanation();
+ }
  function html(){
   return '<div class="camera-settings">'+
    '<h2>CAMERA SETTINGS</h2>'+
-   '<p class="camera-settings-tip">Choose the rear camera and hardware zoom. Your saved selections are shown immediately; Safari will report which lenses and zoom levels it supports.</p>'+
+   '<p class="camera-settings-tip">Scanning settings adapt to the cameras and controls available in your browser.</p>'+
+   '<label class="field-label" for="camera-scan-mode">SCANNING CONFIGURATION</label>'+
+   '<select id="camera-scan-mode" class="input">'+modeOptions.map(([id,label])=>'<option value="'+id+'" '+(saved.mode===id?'selected':'')+'>'+label+'</option>').join('')+'</select>'+
+   '<p id="camera-mode-note" class="camera-settings-note">'+modeExplanation()+'</p>'+
    '<label class="field-label" for="camera-device">REAR CAMERA / LENS</label>'+
    '<select id="camera-device" class="input"><option value="auto" '+(saved.deviceId==='auto'?'selected':'')+'>Rear camera — automatic</option>'+
     (saved.deviceId!=='auto'?'<option selected value="'+safe(saved.deviceId)+'">Saved rear camera (checking availability)</option>':'')+'</select>'+
@@ -35,6 +56,7 @@ const CameraSettings=(()=>{
    '<p id="camera-zoom-note" class="camera-settings-note">Saved setting: '+fmt(saved.zoom)+'. Checking actual camera zoom capability…</p>'+
    '<div class="camera-settings-preview"><div id="settings-reader"></div><div class="camera-settings-overlay"><span>CAMERA PREVIEW</span><div class="camera-settings-target"></div></div><div class="camera-settings-loading" id="camera-settings-loading">Starting rear camera…</div></div>'+
    '<p id="camera-focus-note" class="camera-settings-note">Autofocus is controlled by the camera unless the browser exposes focus controls.</p>'+
+   '<p id="camera-resolution-note" class="camera-settings-note">Checking camera resolution…</p>'+
    '<label class="field-label" for="camera-code-format">BARCODE TYPE</label>'+
    '<select id="camera-code-format" class="input"><option value="qr" '+(saved.codeFormat==='qr'?'selected':'')+'>QR codes only</option><option value="dm" '+(saved.codeFormat==='dm'?'selected':'')+'>Data Matrix only — faster for existing pots</option><option value="qr-dm" '+(saved.codeFormat==='qr-dm'?'selected':'')+'>QR + Data Matrix — compatible with both</option></select>'+
    '<p class="camera-settings-note">Data Matrix only checks one barcode format in the central area. Centre the code to scan; use QR + Data Matrix for mixed labels.</p>'+
@@ -42,7 +64,7 @@ const CameraSettings=(()=>{
    '<select id="camera-decoder-engine" class="input">'+
     '<option value="js" '+(saved.engine==='js'?'selected':'')+'>Original ZXing (current)</option>'+
     '<option value="wasm" '+(saved.engine==='wasm'?'selected':'')+'>ZXing-C++ Fast (experimental)</option></select>'+
-   '<p class="camera-settings-note">Applies only when Barcode type is Data Matrix only. Fast runs a different decoder on the same camera and falls back automatically if unavailable. First use downloads about 1 MB.</p>'+
+   '<p class="camera-settings-note">Fast Data Matrix decoding is the default. If unavailable, the original decoder resumes automatically. It only applies to Data Matrix-only mode; first use may download approximately 1 MB.</p>'+
    '<p id="camera-fast-status" class="camera-settings-note"></p>'+
    '<div class="camera-settings-status" id="camera-settings-status" role="status" aria-live="polite">Preparing camera…</div>'+
    '<div class="camera-settings-cleanup"><div class="field-label">TESTING DATA</div>'+
@@ -66,11 +88,12 @@ const CameraSettings=(()=>{
  // decoder. Keep the exact known-working QR and mixed-mode scan settings.
  function scanConfig(){
   if(saved.codeFormat!=='dm')return {fps:10};
+  const small=saved.mode==='small';
   return {
-   fps:12,
+   fps:small?10:12,
    disableFlip:true,
    qrbox:(width,height)=>{
-    const side=Math.floor(Math.min(width,height)*0.76);
+    const side=Math.floor(Math.min(width,height)*(small?0.60:0.76));
     const w=Math.max(1,Math.min(side,Math.floor(width-1)));
     const h=Math.max(1,Math.min(side,Math.floor(height-1)));
     return {width:w,height:h};
@@ -78,6 +101,18 @@ const CameraSettings=(()=>{
   };
  }
  function fastMatrixSelected(){return saved.codeFormat==='dm'&&saved.engine==='wasm';}
+ function cropFraction(){return saved.mode==='small'?0.60:0.74;}
+ async function chooseMode(next){
+  if(!['auto','small','manual'].includes(next))return;
+  if(saved.mode===next)return;
+  saved.mode=next;save();updateModeNote();
+  status('Scanning mode saved. Restarting the camera preview with the selected settings…');
+  if(modal==='camera-settings'){
+   zoomRange=null;
+   await stopCamera();
+   if(modal==='camera-settings')startCamera();
+  }
+ }
  function chooseEngine(next){
   saved.engine=next==='wasm'?'wasm':'js';
   save();
@@ -86,9 +121,9 @@ const CameraSettings=(()=>{
    :'Original decoder selected. Press DONE, then reopen scanning.');
  }
  function chooseFormat(next){
-  saved.codeFormat=['qr','qr-dm','dm'].includes(next)?next:'qr';save();
+  saved.codeFormat=['qr','qr-dm','dm'].includes(next)?next:defaults.codeFormat;save();
   const message=saved.codeFormat==='dm'
-   ?'Data Matrix only: 12 scan attempts/second with a central scan area. Centre the code and hold steady.'
+   ?'Data Matrix only: '+(saved.mode==='small'?'small-code':'standard')+' central scan area. Centre the code and hold steady.'
    :saved.codeFormat==='qr-dm'
    ?'QR and Data Matrix enabled. Combined scanning can be slower than Data Matrix only.'
    :'QR-only scanning selected.';
@@ -152,14 +187,39 @@ const CameraSettings=(()=>{
    select.value=saved.deviceId;
    const note=$('#camera-device-note');
    if(note)note.textContent=devices.length>1
-    ?'Safari lists '+devices.length+' selectable cameras. The names shown are from iOS.'
+    ?'Your browser lists '+devices.length+' selectable cameras. The names come from your device.'
     :devices.length===1
-    ?'Safari exposes one rear camera. It may combine multiple physical lenses.'
-    :'Safari is not exposing separate rear-camera choices.';
+    ?'Your browser exposes one rear camera; it may combine several physical lenses.'
+    :'Your browser does not expose separate rear-camera choices.';
    if(saved.deviceId!=='auto'&&!available&&note)note.textContent+=' Saved camera is not in the current list; select Auto or another camera if it cannot start.';
   }catch(error){
    const note=$('#camera-device-note');
    if(note)note.textContent='Camera list unavailable: '+String(error?.message||error)+'. The saved camera and automatic selection remain available.';
+  }
+ }
+ function reportResolution(instance=scanner){
+  if(modal!=='camera-settings')return;
+  const note=$('#camera-resolution-note');if(!note)return;
+  const setting=trackSettings(instance);
+  const w=Number(setting.width)||getTrack()?.getSettings?.().width||0;
+  const h=Number(setting.height)||getTrack()?.getSettings?.().height||0;
+  note.textContent=(w&&h?'Camera feed: '+w+' × '+h+'. ':'Camera feed resolution unavailable. ')+
+   (saved.mode==='small'?'Higher resolution requested where supported.':'Resolution selected by the browser.');
+ }
+ async function applySmallCodeResolution(instance=scanner){
+  if(saved.mode!=='small'||instance!==scanner||cameraState!=='live')return;
+  const track=getTrack();
+  if(!track?.applyConstraints)return;
+  try{
+   const supported=navigator.mediaDevices?.getSupportedConstraints?.()||{};
+   if(supported.width===false&&supported.height===false)return;
+   const current=track.getConstraints?.()||{};
+   const preference={...current};
+   if(supported.width!==false)preference.width={ideal:1920};
+   if(supported.height!==false)preference.height={ideal:1080};
+   await track.applyConstraints(preference);
+  }catch(error){
+   if(modal==='camera-settings')status('Using the available camera resolution; higher-resolution preference was rejected.');
   }
  }
  function updateZoomUI(instance=scanner){
@@ -192,7 +252,7 @@ const CameraSettings=(()=>{
     await instance.applyVideoConstraints({advanced:[{focusMode:'continuous'}]});
     if(note&&modal==='camera-settings')note.textContent='Continuous autofocus requested. Keep the QR code steady within the centre guide.';
    }catch(e){if(note&&modal==='camera-settings')note.textContent='Automatic focus is managed by the browser (manual focus control was rejected).';}
-  }else if(note&&modal==='camera-settings')note.textContent='Autofocus is managed by iOS; Safari has not exposed a manual focus control.';
+  }else if(note&&modal==='camera-settings')note.textContent='Autofocus is managed by the device; this browser has not exposed a manual focus control.';
  }
  async function applyActualZoom(target,instance=scanner,{persist=true}={}){
   if(!instance||cameraState!=='live')return false;
@@ -324,11 +384,16 @@ const CameraSettings=(()=>{
   if(modal==='camera-settings'){
    const select=$('#camera-code-format');if(select)select.value=saved.codeFormat;
    const decoderSelect=$('#camera-decoder-engine');if(decoderSelect)decoderSelect.value=saved.engine;
+   const modeSelect=$('#camera-scan-mode');if(modeSelect)modeSelect.value=saved.mode;
+   updateModeNote();
    status('Camera live. Checking lens and zoom controls…');
    const loading=$('#camera-settings-loading');if(loading)loading.hidden=true;
    await listCameras();
   }
   if(scanner!==instance||cameraState!=='live')return;
+  await applySmallCodeResolution(instance);
+  if(scanner!==instance||cameraState!=='live')return;
+  reportResolution(instance);
   await setContinuousFocus(instance);
   if(scanner!==instance||cameraState!=='live')return;
   const range=supportedZoom(instance);
@@ -355,11 +420,11 @@ const CameraSettings=(()=>{
  function reset(){
   if(modal!=='camera-settings')return;
   saved={...defaults};save();zoomRange=null;clearZoomWatch();
-  status('Restoring default rear camera and 1× zoom…');
+  status('Restoring automatic Data Matrix scanning with the fast decoder and 1× zoom…');
   stopCamera().then(()=>{if(modal==='camera-settings')startCamera()});
  }
  function noteError(err){
   if(modal==='camera-settings')status('Camera could not start: '+String(err?.message||err)+'. Try Defaults or allow camera access.');
  }
- return {html,cameraConstraint,formats,scanConfig,chooseFormat,fastMatrixSelected,chooseEngine,onStarted,onStopped,monitor,start,chooseCamera,setZoom,reset,noteError,capabilities,trackSettings};
+ return {html,cameraConstraint,formats,scanConfig,chooseFormat,fastMatrixSelected,cropFraction,chooseEngine,chooseMode,onStarted,onStopped,monitor,start,chooseCamera,setZoom,reset,noteError,capabilities,trackSettings};
 })();
