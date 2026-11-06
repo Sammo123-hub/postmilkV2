@@ -29,7 +29,7 @@ This release expands the existing mobile-first post-milking workflow without rep
 
 ### Sessions (UI-50, UI-52, UI-54, UI-46)
 - **Sampling Sessions** now offers sort/filter by site and status and links to the multi-step **Create Session** flow.
-- The creation flow follows **Location → Details → Review → Created**. Only linked site/herd combinations are offered; date and milking are captured. The generated Session ID is clearly **local**, not NMR-issued.
+- The creation flow follows **Location → Details → Review**, then goes directly to **UI-50 Sampling Sessions**, with the new session first in the list. Only linked site/herd combinations are offered; date and milking are captured. The generated Session ID is clearly **local**, not NMR-issued.
 - **Animal records on this device** is an optional, non-blocking review. **Refresh Demo Records** changes only a local demo timestamp; it is not an NMR download.
 - **Session Details** is a dedicated screen. Session ID and location are fixed once created; milking times are editable before closure; yield recording is controlled by Parlour Setup.
 
