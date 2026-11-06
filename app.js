@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.8.16';
+const VERSION='1.8.17';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -937,44 +937,17 @@ function onQrDecoded(value){
  lastScanId=code;lastScanTime=now;
  if(capturing){
   const uid=selectedUid;
-  if(linkSample(code,uid))showCaptureLinked(uid,code);
+  if(linkSample(code,uid)){
+   // Linking is immediately complete; UI-20 is for tapping an existing
+   // linked record, not an automatic post-scan confirmation.
+   closeModal(false);
+   render();
+   if(page==='linking'&&data.phase==='linking'&&waiting().length)startCamera();
+  }
  }else if(page==='boxes')boxScan(code);else linkSample(code);
 }
-// UI-20: briefly show mockup 4.3.2 after linking before the sheet closes.
-// The selected animal can be out of sequence: NEXT is always determined by the
-// first unresolved animal in the original list, not by this capture selection.
-function showCaptureLinked(animalUid,sampleId){
- if(modal!=='capture'||selectedUid!==animalUid||captureCompleting)return;
- captureCompleting=true;
- const animal=animals().find(a=>a.uid===animalUid);
- const position=animal?animals().indexOf(animal)+1:0;
- const sheet=$('.capture-sheet');
- if(sheet)sheet.classList.add('capture-complete');
- const status=$('.capture-status-pill');
- if(status){status.textContent='Sample linked';status.classList.add('linked');}
- const cameraIndicator=$('.capture-camera-indicator');
- if(cameraIndicator)cameraIndicator.innerHTML='<span id="capture-badge">CAMERA OFF</span>';
- const camera=$('.capture-camera');
- if(camera){
-  camera.classList.add('capture-linked');
-  const overlay=document.createElement('div');
-  overlay.className='capture-linked-result';
-  overlay.innerHTML='<div class="capture-linked-caption">SAMPLE ID</div><div class="capture-linked-id">'+safe(sampleId)+'</div>';
-  camera.appendChild(overlay);
- }
- const actions=$('.capture-actions');
- if(actions)actions.innerHTML='<button class="btn outline" disabled>NOT TO BE SAMPLED</button><button class="btn outline" disabled>TYPE SAMPLE ID</button><button class="btn outline capture-delete-display" disabled>DELETE SAMPLE ID</button><button class="btn outline" disabled>ANIMAL DETAILS</button><button class="btn outline capture-add-test" data-action="add-test">+ ADD TEST</button>';
- // Stop the popup camera, but preserve this confirmation view for a moment.
- stopCamera();
- clearTimeout(captureCompletionTimer);
- captureCompletionTimer=setTimeout(()=>{
-  captureCompletionTimer=null;
-  if(modal!=='capture'||selectedUid!==animalUid||!captureCompleting)return;
-  closeModal(false);
-  render(); // Move this animal into the one green latest-linked position above the camera.
-  if(page==='linking'&&data.phase==='linking'&&waiting().length)startCamera();
- },950);
-}
+// UI-20 linked state is opened when the operator selects an already-linked
+// animal and pot, not after the scanner successfully links a new sample.
 async function stopCamera(){
  FastMatrix.stop();
  CameraSettings.onStopped();
@@ -1158,6 +1131,25 @@ function openModal(name,which='',options={}){
     <div class="manual-capture-pad">${numericKeys.map(key=>`<button type="button" data-action="manual-digit" data-digit="${key}" class="${key==='CLR'?'manual-clear':''}">${key}</button>`).join('')}</div>
     <div class="manual-capture-actions">${btn('BACK TO SCAN','back-to-capture','outline')}${btn('LINK SAMPLE','link-animal-sample','secondary','id="manual-link"')}</div>`;
  }
+ if(name==='linked-capture'&&animal&&animal.sample){
+  const position=animals().indexOf(animal)+1;
+  const locked=data.phase==='closed';
+  html='<div class="linked-capture-ui20">'+
+   '<div class="linked-capture-grip" aria-hidden="true"></div>'+
+   '<div class="linked-capture-top">'+
+    '<div class="linked-capture-heading"><span>LIST POSITION '+position+'</span><strong>'+safe(animal.line)+'</strong></div>'+
+    '<div class="linked-capture-state"><span class="linked-capture-pill">Sample linked</span><span class="linked-capture-camera"><i aria-hidden="true"></i>CAMERA OFF</span></div>'+
+   '</div>'+
+   '<div class="linked-capture-sample"><span>SAMPLE ID</span><strong>'+safe(animal.sample)+'</strong></div>'+
+   '<div class="linked-capture-actions">'+
+    '<button class="btn outline" type="button" disabled>NOT TO BE SAMPLED</button>'+
+    '<button class="btn outline" type="button" disabled>TYPE SAMPLE ID</button>'+
+    btn('DELETE SAMPLE ID','unlink-animal','outline linked-capture-delete',locked?'disabled':'')+
+    btn('ANIMAL DETAILS','capture-details','outline')+
+    btn('+ ADD TEST','add-test','outline linked-capture-add-test',data.labReceivedAt?'disabled':'')+
+   '</div>'+
+  '</div>';
+ }
  if(name==='capture'&&animal){
   const position=animals().indexOf(animal)+1;
   html=`<div class="capture-grip"><button type="button" data-action="modal-close" aria-label="Close sample capture"><span></span></button></div>
@@ -1194,7 +1186,7 @@ function openModal(name,which='',options={}){
  :'All animals added to this session are linked or marked No Sample.'} Animals in the herd data that were NOT ADDED to this session will remain Not Added.</p>${blockingIssues()?`<div class="notice warning">Duplicate animal records or Sample IDs must be resolved first.</div>`:''}${data.phase!=='linking'?'<div class="notice warning">Start sample linking before confirming.</div>':''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM SAMPLING','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
  if(name==='confirm-lab-receipt')html='<h2>Simulate laboratory receipt?</h2><p class="hint">This marks samples received at the laboratory for this local demo. Test assignments become permanently read-only. No actual NMR or laboratory service is connected.</p><div class="buttons">'+btn('CANCEL','modal-close','outline')+btn('CONFIRM DEMO RECEIPT','confirm-lab-receipt','danger')+'</div>';
  if(name==='confirm-close')html=`<h2>Close sampling session?</h2><p class="hint">Closing makes sample linking and boxes read-only. Tests remain editable until laboratory receipt. This prototype does not send data to NMR; use Data Management to export JSON.</p><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('CLOSE SESSION','do-close','danger')}</div>`;
- $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':name==='menu'?'menu-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':name==='menu'?'menu-sheet':name==='no-sample'?'no-sample-reason-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':name==='menu'?'Main menu':'Post-milking'}">${name==='menu'||name==='capture'||name==='no-sample'||name==='herd-picker'||name==='herd-yield'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
+ $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':name==='menu'?'menu-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':name==='linked-capture'?'linked-capture-sheet':name==='menu'?'menu-sheet':name==='no-sample'?'no-sample-reason-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':name==='menu'?'Main menu':'Post-milking'}">${name==='menu'||name==='capture'||name==='linked-capture'||name==='no-sample'||name==='herd-picker'||name==='herd-yield'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
  const focus=({ 'add-animal':'new-line',manual:'manual-id'})[name];if(focus){const input=$('#'+focus);if(input)input.focus({preventScroll:true});}if(name==='capture'&&!options.skipCamera)startCamera();if(name==='camera-settings')CameraSettings.start();
 }
 function closeModal(resume=true){if(resume&&modal==='no-sample'&&noSampleReturnToCapture){const originalUid=selectedUid;noSampleReturnToCapture=false;openModal('capture',originalUid);return;}noSampleReturnToCapture=false;clearTimeout(captureCompletionTimer);captureCompletionTimer=null;captureCompleting=false;if(modal==='capture'||modal==='camera-settings')stopCamera();modal='';selectedUid='';$('#modal-root').replaceChildren();if(resume&&((page==='linking'&&data.phase==='linking'&&waiting().length)||page==='boxes'))startCamera();}
@@ -1519,13 +1511,22 @@ function doAction(action,button){
   button.disabled=true;button.textContent='LINKING…';
   try{
    const ok=linkSample(code,animalUid);
-   if(ok){openModal('capture',animalUid,{skipCamera:true});showCaptureLinked(animalUid,code);}
+   if(ok){
+    closeModal(false);
+    render();
+    if(page==='linking'&&data.phase==='linking'&&waiting().length)startCamera();
+   }
    else{button.disabled=false;button.textContent='LINK SAMPLE';explain('Sample ID could not be linked. Check the number and try again.');}
   }catch(err){button.disabled=false;button.textContent='LINK SAMPLE';explain('Linking error: '+String(err?.message||err));}
   break;
  }
  case 'save-manual':{const v=$('#manual-id')?.value||'';const ok=page==='boxes'?boxScan(v):linkSample(v);if(ok){closeModal(false);if(page==='linking'&&waiting().length||page==='boxes')startCamera();}break;}
- case 'animal':{const a=animals().find(x=>x.uid===button.dataset.uid);if(!a)return;selectedUid=a.uid;openModal(data.phase==='linking'&&!a.sample&&!a.noSampleReason&&(page==='linking'||page==='animals')?'capture':'animal',a.uid);break;}
+ case 'animal':{
+  const a=animals().find(x=>x.uid===button.dataset.uid);if(!a)return;
+  selectedUid=a.uid;
+  const type=a.sample?'linked-capture':data.phase==='linking'&&!a.noSampleReason&&(page==='linking'||page==='animals')?'capture':'animal';
+  openModal(type,a.uid);break;
+ }
  case 'save-animal-details':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;const line=$('#animal-line').value.trim(),yieldKg=recordYields()?$('#animal-yield')?.value.trim()||'':'';if(!/^[-\w]{1,25}$/.test(line)||animals().some(b=>b!==a&&b.line===line))return toast('Invalid or duplicate animal line');if(yieldKg!==''&&(!Number.isFinite(+yieldKg)||+yieldKg<0))return toast('Invalid yield');a.line=line;a.yield=yieldKg;store();closeModal(false);render();if(page==='linking'&&data.phase==='linking'&&waiting().length)startCamera();break;}
  case 'unlink-animal':{const a=animals().find(a=>a.uid===selectedUid);if(!a)return;a.sample='';a.linkedSequence=0;a.linkedAt='';a.tests=[];if(data.phase==='confirmed')reopenSamplingLinks();store();closeModal(false);render();if(page==='linking')startCamera();break;}
  case 'no-sample':openModal('no-sample',selectedUid);break;
