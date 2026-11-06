@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.8.5';
+const VERSION='1.8.6';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -226,7 +226,7 @@ function wizardScreen(){
   html='<div class="journey-card"><div class="tinycap">FARM · FIXED FOR THIS DEMO DEVICE</div><strong>'+safe(demoAccount.farm)+'</strong></div><section class="journey-card"><div class="tinycap">PARLOUR SITE</div>'+siteOptions+'</section><section class="journey-card"><div class="tinycap">HERD AT THIS SITE</div>'+herdOptions+'</section>';
   foot=btn('CANCEL','wizard-cancel','outline')+btn('NEXT · DETAILS','wizard-next','primary',site&&wizardDraft.herd?'':'disabled');
  }else if(wizardStep===2){
-  html='<section class="journey-card"><div class="tinycap">WHEN</div><label class="field-label">SAMPLING DATE</label><input id="wizard-date" type="date" class="input wizard-date" value="'+safe(wizardDraft.date)+'">'+
+  html='<section class="journey-card"><div class="tinycap">WHEN</div><label class="field-label">SAMPLING DATE</label><div class="wizard-date-frame"><input id="wizard-date" type="date" class="input wizard-date" value="'+safe(wizardDraft.date)+'"></div>'+
    '<label class="field-label">MILKING</label><select id="wizard-milking" class="input">'+['AM','PM','AM + PM'].map(x=>'<option '+(wizardDraft.milking===x?'selected':'')+'>'+x+'</option>').join('')+'</select>'+
    '<div class="tinycap">SESSION TYPE</div><strong>Milk quality testing</strong><p class="hint">Disease-test and BVD ear-tag session creation are not connected in this prototype.</p>'+
    '</section>';
@@ -236,7 +236,7 @@ function wizardScreen(){
    '<section class="journey-card"><div class="journey-card-head"><strong>SESSION</strong>'+btn('EDIT','wizard-edit-details','outline')+'</div><div class="journey-plain-row">Date <strong>'+safe(shortDate(wizardDraft.date))+'</strong></div><div class="journey-plain-row">Milking <strong>'+safe(wizardDraft.milking)+'</strong></div><div class="journey-plain-row">Type <strong>Milk quality testing</strong></div></section><p class="hint">CREATE makes a local demo session. No ID is requested from NMR.</p>';
   foot=btn('BACK','wizard-back','outline')+btn('CREATE SESSION','wizard-create','primary');
  }
- return ['<div class="journey-page"><div class="tinycap">AD HOC SESSION · '+safe(demoAccount.farm)+'</div><h2>Create sampling session</h2>'+top+html+'</div>','<div class="journey-actions">'+foot+'</div>'];
+ return ['<div class="journey-page wizard-page"><div class="tinycap">AD HOC SESSION · '+safe(demoAccount.farm)+'</div><h2>Create sampling session</h2>'+top+html+'</div>','<div class="journey-actions">'+foot+'</div>'];
 }
 function sessionCreatedScreen(){
  return ['<div class="journey-page"><div class="journey-done-label">✓ DEMO SESSION CREATED</div><h2>'+safe(data.session)+'</h2><section class="journey-card"><div class="tinycap">SAMPLING DATA ON THIS DEVICE</div><div class="journey-plain-row">Session information <strong>Prepared locally</strong></div><div class="journey-plain-row">Parlour configuration <strong>Demo</strong></div><div class="journey-plain-row">Animal data <strong>'+ (demoPrefs.downloadAuto?'Demo catalogue ready':'Update optional') +'</strong></div><div class="journey-plain-row">Tests <strong>Available after pot linking</strong></div></section><p class="hint">This session is stored on this browser only. NMR has not registered or accepted it.</p></div>',btn('VIEW SESSION','view-created-session','primary wide')+btn('SAMPLING SESSIONS','goto-sessions','outline wide')];
@@ -688,7 +688,7 @@ function boxesScreen(){
   '</div>';
  return [html,footer];
 }
-function render(){const [html,foot]=({issues:issuesScreen,'animal-detail':animalDetailScreen,'new-session-flow':wizardScreen,'session-created':sessionCreatedScreen,'animal-records':animalRecordsScreen,'session-details':sessionDetailsScreen,signin:signInScreen,account:accountScreen,site:siteScreen,settings:settingsOverviewScreen,'sampling-settings':samplingSettingsScreen,'data-settings':dataSettingsScreen,about:aboutScreen,sessions:sessionsScreen,session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen,tests:testManagementScreen,data:dataManagementScreen}[page]||sessionsScreen)();$('#app').innerHTML=`<div class="app ${page==='signin'?'app-signin':''}">${header()}<main class="body ${page==='signin'?'signin-body':''}" id="main-scroll">${html}</main>${foot?`<footer class="bottom ${page==='signin'?'signin-footer':''}">${foot}</footer>`:''}</div>`;updateDebug();}
+function render(){const [html,foot]=({issues:issuesScreen,'animal-detail':animalDetailScreen,'new-session-flow':wizardScreen,'session-created':sessionCreatedScreen,'animal-records':animalRecordsScreen,'session-details':sessionDetailsScreen,signin:signInScreen,account:accountScreen,site:siteScreen,settings:settingsOverviewScreen,'sampling-settings':samplingSettingsScreen,'data-settings':dataSettingsScreen,about:aboutScreen,sessions:sessionsScreen,session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen,tests:testManagementScreen,data:dataManagementScreen}[page]||sessionsScreen)();$('#app').innerHTML=`<div class="app ${page==='signin'?'app-signin':''}">${header()}<main class="body ${page==='signin'?'signin-body':''}" id="main-scroll">${html}</main>${foot?`<footer class="bottom ${page==='signin'?'signin-footer':''}">${foot}</footer>`:''}</div>`;if(page==='new-session-flow'){$('#main-scroll').scrollTop=0;}updateDebug();}
 function refreshLinkingAfterScan(){
  // Intentionally never render() or replace #qr-reader during a successful QR read.
  const last=$('#last-linked');if(last)last.innerHTML=latest()?animalCard(latest(),{latest:true}):'<div class="no-last">The last linked animal will appear here in green</div>';
