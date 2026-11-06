@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.8.10';
+const VERSION='1.8.11';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -648,11 +648,70 @@ function applyAnimalSwap(animalUid,line){
  store();return true;
 }
 function animalsScreen(){
- const chosen=animals().filter(a=>(filter==='all'||filter==='linked'&&a.sample||filter==='awaiting'&&!a.sample&&!a.noSampleReason||filter==='no-sample'&&a.noSampleReason||filter==='issues'&&(dupLines().has(a.line)||a.sample&&duplicateSampleIds().has(a.sample)))&&
-  (!animalListQuery||a.line.includes(animalListQuery)||String(a.sample||'').includes(animalListQuery)));
- const buttons=['all','awaiting','linked','no-sample','issues'].map(key=>'<button type="button" class="pill '+(filter===key?'active':'')+'" data-action="filter" data-filter="'+key+'">'+safe(key.toUpperCase())+'</button>').join('');
- const cards=chosen.map(a=>filter==='issues'?'<button class="journey-issue-row warning" data-action="issue-animal" data-uid="'+safe(a.uid)+'"><b>'+safe(a.line)+'</b><span>'+safe(a.sample||'No sample')+'</span><strong>DETAILS ›</strong></button>':animalCard(a)).join('');
- return ['<div class="pillrow">'+buttons+'</div><input class="input" type="search" id="animals-search" placeholder="Search line or sample ID" value="'+safe(animalListQuery)+'"><div class="section-head"><strong>ANIMALS · '+chosen.length+'</strong></div><div>'+ (cards||'<div class="empty">No animals in this view.</div>')+'</div><p class="hint">Tap an animal to review its sampling record. Issues can be resolved from the Issues screen.</p>',btn('SESSION MANAGEMENT','goto-session','secondary wide')];
+ // The Animals screen is a HERD DATA view. A sampling record is a separate,
+ // session-specific overlay on each herd animal; it must not replace the herd.
+ const herd=HerdDemo.HERD;
+ const current=animals();
+ const byLine=new Map();
+ for(const a of current){
+  if(!byLine.has(a.line))byLine.set(a.line,[]);
+  byLine.get(a.line).push(a);
+ }
+ const herdLines=new Set(herd.map(h=>h.line));
+ const statusOf=a=>a.sample?'linked':a.noSampleReason?'no-sample':'awaiting';
+ // Keep duplicate session entries individually visible, without duplicating
+ // animals that have not been added to the session.
+ const records=herd.flatMap(h=>{
+  const added=byLine.get(h.line)||[];
+  return added.length
+   ?added.map(a=>({line:h.line,herdId:h.id,animal:a,status:statusOf(a)}))
+   :[{line:h.line,herdId:h.id,animal:null,status:'not-added'}];
+ });
+ // Ad-hoc line numbers entered during sampling are not silently presented as
+ // confirmed animal-service records in the core herd catalogue.
+ for(const a of current)if(!herdLines.has(a.line)){
+  records.push({line:a.line,herdId:'',animal:a,status:statusOf(a)});
+ }
+ const dupAnimal=dupLines(),dupSamples=duplicateSampleIds();
+ const isIssue=entry=>!!entry.animal&&(dupAnimal.has(entry.line)||(entry.animal.sample&&dupSamples.has(entry.animal.sample)));
+ const totals={all:records.length,'not-added':0,awaiting:0,linked:0,'no-sample':0,issues:0};
+ for(const entry of records){
+  totals[entry.status]++;
+  if(isIssue(entry))totals.issues++;
+ }
+ const query=animalListQuery.trim().toLowerCase();
+ const chosen=records.filter(entry=>(filter==='all'||filter==='issues'&&isIssue(entry)||entry.status===filter)&&
+  (!query||entry.line.toLowerCase().includes(query)||
+    String(entry.animal?.sample||'').toLowerCase().includes(query)||
+    entry.herdId.toLowerCase().includes(query)));
+ const tabs=[['all','ALL'],['not-added','NOT ADDED'],['awaiting','AWAITING'],['linked','LINKED'],['no-sample','NO SAMPLE'],['issues','ISSUES']];
+ const buttons=tabs.map(([key,label])=>'<button type="button" class="pill '+(filter===key?'active':'')+'" data-action="filter" data-filter="'+key+'">'+label+' · '+totals[key]+'</button>').join('');
+ const cards=chosen.map(entry=>{
+  const a=entry.animal,kind=entry.status;
+  const label=kind==='not-added'?'NOT ADDED':kind==='awaiting'?'AWAITING':kind==='linked'?'LINKED':'NO SAMPLE';
+  const issue=isIssue(entry);
+  const description=!a
+   ?'In herd data · not in this sampling session'
+   :a.sample?'Sample ID '+safe(a.sample)
+   :a.noSampleReason?'Reason: '+safe(a.noSampleReason)
+   :entry.herdId?'Added to sampling session · not linked':'Session entry · not linked';
+  const id=entry.herdId?'<span class="animal-registry-id">'+safe(entry.herdId)+'</span>':'<span class="animal-registry-id">SESSION ENTRY</span>';
+  const content='<span class="animal-registry-primary"><strong>'+safe(entry.line)+'</strong>'+id+'</span>'+
+   '<span class="animal-registry-meta">'+description+'</span>'+
+   '<span class="animal-registry-state '+kind+'">'+label+(issue?' · ISSUE':'')+'</span>';
+  return a
+   ?'<button type="button" class="animal-registry-row '+kind+(issue?' issue':'')+'" data-action="animal" data-uid="'+safe(a.uid)+'">'+content+'<span class="animal-registry-chevron" aria-hidden="true">›</span></button>'
+   :'<div class="animal-registry-row not-added">'+content+'</div>';
+ }).join('');
+ const context='<p class="hint">NOT ADDED: in herd data, not selected for this session. AWAITING: added to the session, waiting for a sample pot to be linked.</p>';
+ return ['<div class="journey-page animal-registry"><div class="tinycap">HERD DATA · '+herd.length+' ANIMALS'+(activeRecordId?' · HERD '+safe(data.herd):'')+'</div>'+
+  (activeRecordId?'<p class="hint">Sampling statuses refer to session '+safe(data.session)+'.</p>':'<p class="hint">Select or create a sampling session to see its sampling statuses.</p>')+
+  context+'<div class="pillrow">'+buttons+'</div>'+
+  '<input class="input" type="search" id="animals-search" placeholder="Search line, animal ID or sample ID" value="'+safe(animalListQuery)+'">'+
+  '<div class="section-head"><strong>ANIMALS · '+chosen.length+'</strong></div>'+
+  '<div class="animal-registry-list">'+(cards||'<div class="empty">No animals in this view.</div>')+'</div>'+
+  '<p class="hint">Tap an animal already in the session to review its sampling record. Use Add Animals during sampling to add animals from the herd data.</p></div>',
+  btn('SESSION MANAGEMENT','goto-session','secondary wide')];
 }
 // UI-39: Sample Boxes states in mockups 4.0.9, 4.0.10 and 4.0.11.
 // The manual box-number entry is an intentional extra to the mockup.
@@ -960,7 +1019,7 @@ function openModal(name,which='',options={}){
     ['goto-session','Session management','Active sampling session']]],
    ['SAMPLE CAPTURE',[
     ['goto-linking','Post-milking linking','Link animals and sample pots'],
-    ['goto-animals','Animals','All, linked, awaiting, issues'],
+    ['goto-animals','Animals','Herd records and sampling status'],
     ['goto-issues','Issues','Review sampling exceptions'],
     ['goto-tests','Test management','Add tests to sampled animals'],
     ['goto-boxes','Sample boxes','Scan and confirm boxes']]],
