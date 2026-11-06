@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.8.13';
+const VERSION='1.8.14';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -768,6 +768,11 @@ function boxesScreen(){
  const html='<div class="box-scan-screen">'+
   ''+
   (closed?'<div class="box-scan-closed">This session is closed. Scanned boxes are shown below.</div>':boxCameraMarkup())+
+  (closed?'':'<div class="box-zoom-controls" role="group" aria-label="Sample box zoom controls">'+
+   '<div class="box-zoom-heading"><label class="field-label" for="box-zoom">BOX BARCODE ZOOM</label><strong id="box-zoom-value">'+Number(CameraSettings.boxZoom()).toFixed(1)+'×</strong></div>'+
+   '<input type="range" id="box-zoom" min="1" max="'+Math.max(2,CameraSettings.boxZoom())+'" step="0.1" value="'+CameraSettings.boxZoom()+'" disabled aria-label="Sample box hardware zoom">'+
+   '<div class="box-zoom-presets"><button type="button" data-action="box-zoom-preset" data-zoom="1" disabled>1×</button><button type="button" data-action="box-zoom-preset" data-zoom="2" disabled>2×</button></div>'+
+   '<p class="box-zoom-note" id="box-zoom-note">Zoom becomes available when the camera starts.</p></div>')+
   '<div class="scan-status" id="scan-status" role="status" hidden></div>'+
   (closed?'':'<button type="button" class="box-manual-button" data-action="manual-sample">+ ADD BOX NUMBER MANUALLY</button>')+
   '<section class="box-scan-card" aria-label="Scanned sample boxes">'+
@@ -1014,7 +1019,7 @@ async function startCamera(){
   $('#camera-retry')?.setAttribute('hidden','');
   (capturing?$('#capture-placeholder'):$('#camera-placeholder'))?.setAttribute('hidden','');
   const video=reader.querySelector('video');if(video){video.setAttribute('playsinline','');video.muted=true}
-  updateCameraButton();scanStatus('CAMERA LIVE — point at the next QR code');
+  updateCameraButton();scanStatus(isBoxScan?'CAMERA LIVE — point at the next box barcode':'CAMERA LIVE — point at the next sample-pot code');
   await CameraSettings.onStarted(opened);
   // Optional alternative decoder on the SAME running camera. The original JS
   // decoder continues until WASM is ready, and is restored if WASM fails.
@@ -1435,6 +1440,7 @@ function doAction(action,button){
  }
  case 'camera-reset':CameraSettings.reset();break;
  case 'camera-zoom-preset':CameraSettings.setZoom(button.dataset.zoom);break;
+ case 'box-zoom-preset':CameraSettings.setZoom(button.dataset.zoom,'boxes');break;
  case 'edit-session':navigate('session-details');break;
  case 'save-session':{
   const rawStart=$('#edit-start').value,rawEnd=$('#edit-end').value;if(rawStart&&!normalTime(rawStart)||rawEnd&&!normalTime(rawEnd))return toast('Enter valid HH:MM times');
@@ -1531,6 +1537,7 @@ document.addEventListener('input',e=>{
  }
 
  if(el.id==='camera-zoom'){CameraSettings.setZoom(el.value);return;}
+ if(el.id==='box-zoom'){CameraSettings.setZoom(el.value,'boxes');return;}
  if(el.id==='test-search'&&page==='tests'){testQuery=el.value;const p=$('#main-scroll');const top=p?.scrollTop||0;render();const next=$('#test-search');if(next){next.focus();next.setSelectionRange?.(testQuery.length,testQuery.length);}if(p)p.scrollTop=top;return;}
  if(!['milking-start','milking-end','edit-start','edit-end'].includes(el.id))return;
  const t=normalTime(el.value);if(/^\d{4}$/.test(el.value)&&t)el.value=t;
@@ -1576,6 +1583,7 @@ document.addEventListener('change',e=>{
   return;
  }
  if(e.target.id==='camera-scan-mode'){CameraSettings.chooseMode(e.target.value);return;}
+ if(e.target.id==='camera-zoom-target'){CameraSettings.selectZoomTarget(e.target.value);return;}
  if(e.target.id==='camera-device'){CameraSettings.chooseCamera(e.target.value);return;}
  if(e.target.id==='camera-code-format'){CameraSettings.chooseFormat(e.target.value);return;}
  if(e.target.id==='camera-decoder-engine'){CameraSettings.chooseEngine(e.target.value);return;}
