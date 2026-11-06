@@ -235,7 +235,7 @@ const CameraSettings=(()=>{
   const range=instance&&cameraState==='live'?supportedZoom(instance):null;
   if(!range){
    slider.disabled=true;
-   for(const button of $('[data-action="box-zoom-preset"]'))button.disabled=true;
+   for(const button of $$('[data-action="box-zoom-preset"]'))button.disabled=true;
    if(label)label.textContent=fmt(saved.boxZoom);
    note.textContent=instance?'Hardware zoom is not available on this camera/browser.':'Zoom becomes available when the camera starts.';
    return;
@@ -245,7 +245,7 @@ const CameraSettings=(()=>{
   const value=Number.isFinite(setting)&&setting>0?setting:Math.max(range.min,Math.min(range.max,saved.boxZoom));
   slider.value=String(value);
   if(label)label.textContent=fmt(value);
-  for(const button of $('[data-action="box-zoom-preset"]')){
+  for(const button of $$('[data-action="box-zoom-preset"]')){
    const z=Number(button.dataset.zoom);
    button.disabled=z<range.min||z>range.max;
   }
