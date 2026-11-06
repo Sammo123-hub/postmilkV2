@@ -386,12 +386,33 @@
 .menu-panel-footer{flex:none;border-top:1px solid var(--line);padding:10px 18px max(12px,env(safe-area-inset-bottom));background:#fff}
 .menu-panel-footer button{border:0;background:none;color:var(--navy);font:600 14px 'DM Sans',Arial,sans-serif;padding:10px 0;text-align:left}
 
-/* Native select text must be completely visible on iOS and Android. */
-#demo-site-type.input{
-  display:block;box-sizing:border-box;height:58px;min-height:58px;
-  padding:12px 14px;line-height:1.45;font-size:18px;
-  -webkit-appearance:menulist;appearance:menulist;
+/* Edit Site: match every field's height and typography on mobile Safari.
+   Avoid native menulist appearance, which renders a compressed select on iOS. */
+.sheet:has(.demo-site-type-frame) #demo-site-name.input,
+.sheet:has(.demo-site-type-frame) #demo-site-address.input,
+.sheet:has(.demo-site-type-frame) #demo-site-rows.input,
+.sheet:has(.demo-site-type-frame) #demo-site-stalls.input{
+  display:block;width:100%;height:50px;min-height:50px;max-height:50px;
+  padding:0 12px;font-size:18px;line-height:normal;
 }
+.demo-site-type-frame{
+  position:relative;display:block;width:100%;height:50px;min-height:50px;
+  border:2px solid var(--brand-navy);border-radius:6px;background:#fff;
+}
+.demo-site-type-frame #demo-site-type.input{
+  display:block;position:relative;width:100%;height:100%;min-height:0;max-height:100%;
+  margin:0;padding:0 46px 0 12px;border:0;border-radius:4px;background:transparent;
+  color:var(--brand-navy);-webkit-text-fill-color:var(--brand-navy);
+  font:600 18px/normal 'DM Sans',Arial,sans-serif;
+  -webkit-appearance:none;appearance:none;
+}
+.demo-site-type-frame::after{
+  content:"";pointer-events:none;position:absolute;right:17px;top:50%;
+  width:11px;height:11px;border-right:2.5px solid var(--brand-navy);
+  border-bottom:2.5px solid var(--brand-navy);transform:translateY(-68%) rotate(45deg);
+}
+.demo-site-type-frame:focus-within{outline:3px solid var(--brand-mint);outline-offset:2px}
+.demo-site-type-frame #demo-site-type:focus-visible{outline:none}
 
 
 /* NMR brand palette — shared across every app screen.
