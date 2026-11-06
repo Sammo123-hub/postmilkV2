@@ -86,7 +86,7 @@ function readSessionRegistry(previous){
  return [];
 }
 // All built-in account/contact/site details are deliberately fictitious.
-// ".example" domains and 01632 960xxx telephone numbers are reserved for examples.
+// ".test" domains and 01632 960xxx telephone numbers are reserved for examples.
 // These records are local-only; there is no live customer, NMR or login service.
 function defaultDemoAccount(){
  return {
