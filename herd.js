@@ -114,7 +114,7 @@ const HerdDemo=(()=>{
   if(data.phase==='setup')data.phase='adding';
   store(); query='';warning='';
   // Requirement 4.2.1: when yields are required, yield capture follows selection.
-  if(data.yields)openModal('herd-yield',a.uid);
+  if(recordYields())openModal('herd-yield',a.uid);
   else{openModal('herd-picker');toast('Added '+a.line+' to the sampling list.');}
  }
  function confirmDuplicate(){
@@ -186,6 +186,7 @@ const HerdDemo=(()=>{
  function saveYield(mode='confirm'){
   const a=animals().find(x=>x.uid===selectedUid);
   if(!a)return;
+  if(!recordYields()){a.yield='';store();openModal('herd-picker');return;}
   if(mode==='skip'){
    a.yield='';
   }else{
