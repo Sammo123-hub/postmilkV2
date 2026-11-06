@@ -17,7 +17,7 @@ const HerdDemo=(()=>{
   if(matches.some(a=>!a.sample&&!a.noSampleReason))return 'awaiting';
   return 'no-sample';
  };
- const words={available:'NOT ADDED',sampled:'SAMPLED',awaiting:'AWAITING', 'no-sample':'NO SAMPLE'};
+ const words={available:'NOT ADDED',sampled:'LINKED',awaiting:'AWAITING', 'no-sample':'NO SAMPLE'};
  const labelFor=line=>words[kind(line)];
  const find=()=>HERD.filter(a=>!query||a.line.includes(query));
  function padHtml(){
@@ -213,7 +213,7 @@ const HerdDemo=(()=>{
  }
  function catalog(){
   const n=counts();
-  const tabs=[['all','ALL · '+HERD.length],['available','NOT ADDED · '+n.available],['awaiting','AWAITING · '+n.awaiting],['sampled','SAMPLED · '+n.sampled],['no-sample','NO SAMPLE · '+n['no-sample']]];
+  const tabs=[['all','ALL · '+HERD.length],['available','NOT ADDED · '+n.available],['awaiting','AWAITING · '+n.awaiting],['sampled','LINKED · '+n.sampled],['no-sample','NO SAMPLE · '+n['no-sample']]];
   return '<div class="herd-catalog"><h2>TEST HERD · 70 ANIMALS</h2>'+
     '<p class="herd-subtitle">Separate from the animals entered into this sampling session. Test-only line numbers 00001–00070.</p>'+
     '<label class="field-label" for="herd-catalog-search">SEARCH LINE NUMBER</label>'+
