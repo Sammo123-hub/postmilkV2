@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.8.0';
+const VERSION='1.8.1';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -151,7 +151,20 @@ function siteScreen(){
  return ['<div class="journey-page"><div class="tinycap">SITE</div><h2>'+safe(site.name)+'</h2><section class="journey-card"><div class="tinycap">SITE</div><strong>'+safe(site.name)+'</strong><p>'+safe(site.address)+'</p></section><section class="journey-card"><div class="tinycap">PARLOUR</div><p>'+safe(demoSiteDesc(site))+'</p><div class="tinycap">LINKED HERDS</div><p>'+safe(site.herds.join(', ')||'None')+'</p><div class="tinycap">YIELDS</div><p>'+ (site.yields?'Record yields':'Not required')+'</p></section></div>',btn('EDIT SITE','edit-demo-site','secondary wide')+btn('ACCOUNT','goto-account','outline wide')];
 }
 function signInScreen(){
- return ['<div class="journey-page"><div class="tinycap">DEMO ACCESS</div><h2>Milk Sampling</h2><p class="hint">Explore the sampling process with a sample account. NMR is not connected.</p><section class="journey-card"><label class="field-label">DEMO USER</label><strong>'+safe(demoAccount.user)+'</strong><p>'+safe(demoAccount.email)+'</p><label class="field-label">ROLE</label><select id="demo-signin-role" class="input"><option value="farmer">Farmer</option><option value="sampler">Sampling operator</option></select><div class="notice">Device PM-DEMO-0142 · Authorisation simulated locally</div></section></div>',btn('ENTER DEMO APP','demo-sign-in','primary wide')];
+ // UI-48 / mockup 4.9.1. Display-only sample credentials; never request or store real passwords.
+ const content='<div class="signin-screen">'+
+  '<div class="signin-brand"><div class="signin-logo" aria-label="Logo placeholder">LOGO</div><div class="signin-brand-words"><strong>Milk Sampling</strong><span>National Milk Records</span></div></div>'+
+  '<p class="signin-intro">Sign in with your NMR account.</p>'+
+  '<div class="signin-form-row"><label>Email or username</label><div class="signin-text-field">alex@example.test</div></div>'+
+  '<div class="signin-form-row"><label>Password</label><div class="signin-text-field signin-password-field"><span id="demo-signin-password">••••••••••</span><button type="button" data-action="demo-password-toggle" id="demo-password-toggle" aria-label="Show example password" aria-pressed="false">SHOW</button></div></div>'+
+  '<button type="button" class="signin-help" data-action="demo-signin-help">Help with sign-in or access <span aria-hidden="true">›</span></button>'+
+  '<section class="signin-device"><div class="signin-device-header">THIS DEVICE</div><div class="signin-device-grid">'+
+   '<div><span>DEVICE</span><strong>HH-0142</strong></div>'+
+   '<div><span>AUTHORISATION</span><strong class="muted">Not authorised yet</strong></div>'+
+   '<div><span>LAST SYNC</span><strong class="muted">None</strong></div>'+
+  '</div></section>'+
+  '</div>';
+ return [content,'<button class="btn primary signin-submit" type="button" data-action="demo-sign-in">SIGN IN</button>'];
 }
 
 function startDemoWizard(){
@@ -285,6 +298,7 @@ const btn=(label,act,cls='',attrs='')=>`<button class="btn ${cls}" type="button"
 function normalTime(value){let s=String(value||'').trim();if(!s)return '';if(/^\d{4}$/.test(s))s=s.slice(0,2)+':'+s.slice(2);const match=s.match(/^(\d{1,2}):(\d{2})$/);if(!match)return '';const h=+match[1],m=+match[2];return h<=23&&m<=59?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`:'';}
 function timeInput(id,value){return `<input class="time-input" id="${id}" value="${safe(value)}" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocorrect="off" autocapitalize="off" autocomplete="off" spellcheck="false" aria-label="${id.includes('start')?'Milking start':'Milking end'} time" data-complete="${normalTime(value)?'1':'0'}">`;}
 function header(){
+ if(page==='signin')return '<div class="top signin-top"><div class="top-inner"><div class="signin-header-title">Sign in</div><span class="signin-not-authorised"><i aria-hidden="true"></i>NOT SIGNED IN</span></div></div>';
  const names={signin:'Sign in',account:'Account',site:'Site','new-session-flow':'Create session',
  'session-created':'Session created','animal-records':'Animal records','session-details':'Session details',
  settings:'Settings','sampling-settings':'Sampling settings','data-settings':'Data settings',about:'About',
@@ -640,7 +654,7 @@ function boxesScreen(){
   '</div>';
  return [html,footer];
 }
-function render(){const [html,foot]=({issues:issuesScreen,'animal-detail':animalDetailScreen,'new-session-flow':wizardScreen,'session-created':sessionCreatedScreen,'animal-records':animalRecordsScreen,'session-details':sessionDetailsScreen,signin:signInScreen,account:accountScreen,site:siteScreen,settings:settingsOverviewScreen,'sampling-settings':samplingSettingsScreen,'data-settings':dataSettingsScreen,about:aboutScreen,sessions:sessionsScreen,session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen,tests:testManagementScreen,data:dataManagementScreen}[page]||sessionsScreen)();$('#app').innerHTML=`<div class="app">${header()}<main class="body" id="main-scroll">${html}</main>${foot?`<footer class="bottom">${foot}</footer>`:''}</div>`;updateDebug();}
+function render(){const [html,foot]=({issues:issuesScreen,'animal-detail':animalDetailScreen,'new-session-flow':wizardScreen,'session-created':sessionCreatedScreen,'animal-records':animalRecordsScreen,'session-details':sessionDetailsScreen,signin:signInScreen,account:accountScreen,site:siteScreen,settings:settingsOverviewScreen,'sampling-settings':samplingSettingsScreen,'data-settings':dataSettingsScreen,about:aboutScreen,sessions:sessionsScreen,session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen,tests:testManagementScreen,data:dataManagementScreen}[page]||sessionsScreen)();$('#app').innerHTML=`<div class="app ${page==='signin'?'app-signin':''}">${header()}<main class="body ${page==='signin'?'signin-body':''}" id="main-scroll">${html}</main>${foot?`<footer class="bottom ${page==='signin'?'signin-footer':''}">${foot}</footer>`:''}</div>`;updateDebug();}
 function refreshLinkingAfterScan(){
  // Intentionally never render() or replace #qr-reader during a successful QR read.
  const last=$('#last-linked');if(last)last.innerHTML=latest()?animalCard(latest(),{latest:true}):'<div class="no-last">The last linked animal will appear here in green</div>';
@@ -1051,9 +1065,20 @@ function doAction(action,button){
  if(testsLocked()&&['toggle-add-test','save-add-test','test-save','test-select-all'].includes(action)){toast('Tests locked: laboratory receipt was simulated.');return;}
  switch(action){
  case 'menu':if(!demoAuth)return;openModal('menu');break;
+ case 'demo-password-toggle':{
+  const value=$('#demo-signin-password'),toggle=$('#demo-password-toggle');
+  if(!value||!toggle)return;
+  const visible=toggle.getAttribute('aria-pressed')!=='true';
+  value.textContent=visible?'example-only':'••••••••••';
+  toggle.textContent=visible?'HIDE':'SHOW';
+  toggle.setAttribute('aria-pressed',String(visible));
+  toggle.setAttribute('aria-label',visible?'Hide example password':'Show example password');
+  break;
+ }
+ case 'demo-signin-help':toast('Sign-in help is not connected in this demonstration.');break;
  case 'demo-sign-in':{
-  demoAccount.role=$('#demo-signin-role')?.value==='sampler'?'Sampling operator':'Farmer · DIY';
-  saveDemoAccount();demoAuth=true;
+  // Sign-in is only a screen transition in this demo; no credentials are captured.
+  demoAuth=true;
   try{localStorage.setItem(DEMO_AUTH_STORAGE,'signed-in')}catch{}
   navigate('sessions');break;
  }
