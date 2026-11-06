@@ -6,7 +6,7 @@
 'use strict';
 const CameraSettings=(()=>{
  const KEY='postmilk-camera-preferences-v1';
- const defaults={deviceId:'auto',zoom:1,codeFormat:'dm',engine:'wasm',mode:'auto'};
+ const defaults={deviceId:'auto',zoom:1,boxZoom:1,codeFormat:'dm',engine:'wasm',mode:'auto'};
  let saved={...defaults};
  try{
   const value=JSON.parse(localStorage.getItem(KEY)||'null');
@@ -17,11 +17,16 @@ const CameraSettings=(()=>{
    saved.engine=value.engine==='wasm'?'wasm':'js';
    saved.mode=['auto','small','manual'].includes(value.mode)?value.mode:defaults.mode;
    const z=Number(value.zoom);saved.zoom=Number.isFinite(z)&&z>=.5&&z<=10?z:1;
+   const bz=Number(value.boxZoom);saved.boxZoom=value.boxZoom!==undefined&&Number.isFinite(bz)&&bz>=.5&&bz<=10?bz:1;
    // Move only the previous untouched factory preset. Preserve customised choices.
    if(oldFactoryDefaults){saved.codeFormat='dm';saved.engine='wasm';}
   }
  }catch{}
  let zoomRange=null,zoomRequested=null,zoomBusy=false,devices=[],zoomWatchBusy=false,zoomWatchTimers=[],lastZoomRepair=0;
+ let zoomPreviewTarget='pots';
+ const activeZoomTarget=()=>modal==='camera-settings'?zoomPreviewTarget:page==='boxes'?'boxes':'pots';
+ const storedZoom=target=>target==='boxes'?saved.boxZoom:saved.zoom;
+ const setStoredZoom=(target,value)=>{if(target==='boxes')saved.boxZoom=value;else saved.zoom=value;save();};
  const round=n=>Math.round(Number(n)*100)/100;
  const fmt=n=>round(n).toFixed(round(n)%1===0?0:2)+'×';
  function save(){try{localStorage.setItem(KEY,JSON.stringify(saved))}catch{}}
@@ -50,10 +55,12 @@ const CameraSettings=(()=>{
    '<select id="camera-device" class="input"><option value="auto" '+(saved.deviceId==='auto'?'selected':'')+'>Rear camera — automatic</option>'+
     (saved.deviceId!=='auto'?'<option selected value="'+safe(saved.deviceId)+'">Saved rear camera (checking availability)</option>':'')+'</select>'+
    '<p id="camera-device-note" class="camera-settings-note">Checking available rear cameras without restarting the preview…</p>'+
-   '<div class="camera-zoom-heading"><label class="field-label" for="camera-zoom">CAMERA ZOOM</label><strong id="camera-zoom-value">'+fmt(saved.zoom)+'</strong></div>'+
-   '<input type="range" id="camera-zoom" min="1" max="'+Math.max(2,saved.zoom)+'" step="0.1" value="'+saved.zoom+'" disabled aria-label="Camera zoom">'+
+   '<label class="field-label" for="camera-zoom-target">ZOOM SETTINGS FOR</label>'+
+   '<select id="camera-zoom-target" class="input"><option value="pots" '+(zoomPreviewTarget==='pots'?'selected':'')+'>Sample pots — small Data Matrix codes</option><option value="boxes" '+(zoomPreviewTarget==='boxes'?'selected':'')+'>Sample boxes — box barcodes</option></select>'+
+   '<div class="camera-zoom-heading"><label class="field-label" for="camera-zoom">HARDWARE ZOOM</label><strong id="camera-zoom-value">'+fmt(storedZoom(zoomPreviewTarget))+'</strong></div>'+
+   '<input type="range" id="camera-zoom" min="1" max="'+Math.max(2,storedZoom(zoomPreviewTarget))+'" step="0.1" value="'+storedZoom(zoomPreviewTarget)+'" disabled aria-label="Zoom for selected barcode type">'+
    '<div class="camera-zoom-buttons"><button type="button" data-action="camera-zoom-preset" data-zoom="1" disabled>1×</button><button type="button" data-action="camera-zoom-preset" data-zoom="2" disabled>2×</button></div>'+
-   '<p id="camera-zoom-note" class="camera-settings-note">Saved setting: '+fmt(saved.zoom)+'. Checking actual camera zoom capability…</p>'+
+   '<p id="camera-zoom-note" class="camera-settings-note">Sample pots and boxes each remember their own zoom. Saved: '+fmt(storedZoom(zoomPreviewTarget))+'. Checking actual camera zoom capability…</p>'+
    '<div class="camera-settings-preview"><div id="settings-reader"></div><div class="camera-settings-overlay"><span>CAMERA PREVIEW</span><div class="camera-settings-target"></div></div><div class="camera-settings-loading" id="camera-settings-loading">Starting rear camera…</div></div>'+
    '<p id="camera-focus-note" class="camera-settings-note">Autofocus is controlled by the camera unless the browser exposes focus controls.</p>'+
    '<p id="camera-resolution-note" class="camera-settings-note">Checking camera resolution…</p>'+
@@ -222,8 +229,31 @@ const CameraSettings=(()=>{
    if(modal==='camera-settings')status('Using the available camera resolution; higher-resolution preference was rejected.');
   }
  }
+ function updateBoxZoomUI(instance=scanner){
+  const slider=$('#box-zoom'),label=$('#box-zoom-value'),note=$('#box-zoom-note');
+  if(!slider||!note)return;
+  const range=instance&&cameraState==='live'?supportedZoom(instance):null;
+  if(!range){
+   slider.disabled=true;
+   for(const button of $('[data-action="box-zoom-preset"]'))button.disabled=true;
+   if(label)label.textContent=fmt(saved.boxZoom);
+   note.textContent=instance?'Hardware zoom is not available on this camera/browser.':'Zoom becomes available when the camera starts.';
+   return;
+  }
+  slider.disabled=false;slider.min=String(range.min);slider.max=String(range.max);slider.step=String(range.step);
+  const setting=Number(trackSettings(instance).zoom);
+  const value=Number.isFinite(setting)&&setting>0?setting:Math.max(range.min,Math.min(range.max,saved.boxZoom));
+  slider.value=String(value);
+  if(label)label.textContent=fmt(value);
+  for(const button of $('[data-action="box-zoom-preset"]')){
+   const z=Number(button.dataset.zoom);
+   button.disabled=z<range.min||z>range.max;
+  }
+  note.textContent='Box zoom is saved separately from pot zoom. Available: '+fmt(range.min)+'–'+fmt(range.max)+'.';
+ }
  function updateZoomUI(instance=scanner){
   const range=supportedZoom(instance),slider=$('#camera-zoom'),valueEl=$('#camera-zoom-value'),note=$('#camera-zoom-note');
+  const chosenZoom=storedZoom(zoomPreviewTarget);
   zoomRange=range;
   if(!slider||!note)return;
   if(!range){
@@ -235,14 +265,14 @@ const CameraSettings=(()=>{
   }
   slider.disabled=false;slider.min=String(range.min);slider.max=String(range.max);slider.step=String(range.step);
   const actual=Number(trackSettings(instance).zoom);
-  const shown=Number.isFinite(actual)&&actual>0?actual:Math.max(range.min,Math.min(range.max,saved.zoom));
+  const shown=Number.isFinite(actual)&&actual>0?actual:Math.max(range.min,Math.min(range.max,chosenZoom));
   slider.value=String(shown);
   if(valueEl)valueEl.textContent=fmt(shown);
   for(const button of $$('[data-action="camera-zoom-preset"]')){
    const z=Number(button.dataset.zoom);
    button.disabled=z<range.min||z>range.max;
   }
-  note.textContent='Hardware zoom range: '+fmt(range.min)+'–'+fmt(range.max)+'. Saved: '+fmt(saved.zoom)+'. Camera reports: '+(Number.isFinite(actual)&&actual>0?fmt(actual):'unavailable')+'.';
+  note.textContent=(zoomPreviewTarget==='boxes'?'Sample boxes':'Sample pots')+' zoom range: '+fmt(range.min)+'–'+fmt(range.max)+'. Saved: '+fmt(chosenZoom)+'. Camera reports: '+(Number.isFinite(actual)&&actual>0?fmt(actual):'unavailable')+'.';
  }
  async function setContinuousFocus(instance=scanner){
   if(!instance||!cameraState||cameraState!=='live')return;
@@ -254,7 +284,7 @@ const CameraSettings=(()=>{
    }catch(e){if(note&&modal==='camera-settings')note.textContent='Automatic focus is managed by the browser (manual focus control was rejected).';}
   }else if(note&&modal==='camera-settings')note.textContent='Autofocus is managed by the device; this browser has not exposed a manual focus control.';
  }
- async function applyActualZoom(target,instance=scanner,{persist=true}={}){
+ async function applyActualZoom(target,instance=scanner,{persist=true,kind=activeZoomTarget()}={}){
   if(!instance||cameraState!=='live')return false;
   const range=supportedZoom(instance);
   if(!range)return false;
@@ -273,12 +303,16 @@ const CameraSettings=(()=>{
    actual=Number(trackSettings(instance).zoom);
   }else if(firstError)throw firstError;
   const displayed=Number.isFinite(actual)&&actual>0?actual:value;
-  if(persist){saved.zoom=value;save();}
-  if(modal==='camera-settings'){
+  if(persist)setStoredZoom(kind,value);
+  if(modal==='camera-settings'&&zoomPreviewTarget===kind){
    const slider=$('#camera-zoom'),label=$('#camera-zoom-value');
    if(slider)slider.value=String(displayed);
    if(label)label.textContent=fmt(displayed);
    status('Requested '+fmt(value)+' zoom; camera reports '+(Number.isFinite(actual)&&actual>0?fmt(actual):'no readable zoom setting')+'.');
+  }else if(page==='boxes'&&modal!== 'camera-settings'&&kind==='boxes'){
+   const slider=$('#box-zoom'),label=$('#box-zoom-value');
+   if(slider)slider.value=String(displayed);
+   if(label)label.textContent=fmt(displayed);
   }
   return true;
  }
@@ -287,10 +321,11 @@ const CameraSettings=(()=>{
   zoomBusy=true;
   try{
    while(zoomRequested!==null){
-    const target=zoomRequested;zoomRequested=null;
+    const request=zoomRequested;zoomRequested=null;
     const instance=scanner;
     if(!instance||cameraState!=='live')break;
-    try{await applyActualZoom(target,instance)}catch(e){if(modal==='camera-settings')status('Camera rejected zoom change: '+String(e?.message||e));}
+    if(request.kind!==activeZoomTarget())continue;
+    try{await applyActualZoom(request.value,instance,{kind:request.kind})}catch(e){if(modal==='camera-settings')status('Camera rejected zoom change: '+String(e?.message||e));}
    }
   }finally{zoomBusy=false}
  }
@@ -313,10 +348,10 @@ const CameraSettings=(()=>{
  // iPhone Safari may readjust its camera after the scanner has become live.
  // Recheck actual MediaStreamTrack zoom; apply the preference again if it drifts.
  async function maintainZoom(instance,{force=false}={}){
-  if(instance!==scanner||cameraState!=='live'||saved.zoom<=1.05||zoomBusy||zoomWatchBusy)return;
+  if(instance!==scanner||cameraState!=='live'||storedZoom(activeZoomTarget())<=1.05||zoomBusy||zoomWatchBusy)return;
   const range=supportedZoom(instance);
   if(!range)return;
-  const target=Math.min(range.max,Math.max(range.min,saved.zoom));
+  const target=Math.min(range.max,Math.max(range.min,storedZoom(activeZoomTarget())));
   const observed=Number(trackSettings(instance).zoom);
   const readable=Number.isFinite(observed)&&observed>0;
   const drift=readable&&Math.abs(observed-target)>0.09;
@@ -336,11 +371,11 @@ const CameraSettings=(()=>{
   const badge=$('#camera-badge');
   if(!badge)return;
   const actual=Number(trackSettings(instance).zoom);
-  if(saved.zoom>1.05&&Number.isFinite(actual)&&actual>0)badge.textContent='CAMERA ON · '+fmt(actual);
+  if(storedZoom(activeZoomTarget())>1.05&&Number.isFinite(actual)&&actual>0)badge.textContent='CAMERA ON · '+fmt(actual);
  }
  function watchZoom(instance){
   clearZoomWatch();
-  if(saved.zoom<=1.05)return;
+  if(storedZoom(activeZoomTarget())<=1.05)return;
   // Apply after Safari's initial autofocus/lens handoff, not only at start().
   for(const delay of [800,1850,3250]){
    zoomWatchTimers.push(setTimeout(()=>maintainZoom(instance,{force:true}),delay));
@@ -351,23 +386,39 @@ const CameraSettings=(()=>{
   updateZoomBadge(instance);
   void maintainZoom(instance);
  }
- function onStopped(){clearZoomWatch();}
- function setZoom(value){
+ function onStopped(){clearZoomWatch();zoomRange=null;zoomRequested=null;}
+ function setZoom(value,kind=activeZoomTarget()){
   const requested=Number(value);
-  if(!Number.isFinite(requested)||!zoomRange)return;
-  const z=Math.max(zoomRange.min,Math.min(zoomRange.max,requested));
-  const label=$('#camera-zoom-value'),slider=$('#camera-zoom');
-  if(label)label.textContent=fmt(z);
-  if(slider)slider.value=String(z);
-  // Save before awaiting applyVideoConstraints: navigating away immediately
-  // after tapping 2× previously left the saved preference at 1×.
-  saved.zoom=z;
-  if(z>1.05)rememberPreviewCamera();
-  save();
-  zoomRequested=z;
+  const range=zoomRange||supportedZoom(scanner);
+  if(!Number.isFinite(requested)||!range||kind!==activeZoomTarget())return;
+  const z=Math.max(range.min,Math.min(range.max,requested));
+  const slider=kind==='boxes'&&modal!=='camera-settings'?'#box-zoom':'#camera-zoom';
+  const label=kind==='boxes'&&modal!=='camera-settings'?'#box-zoom-value':'#camera-zoom-value';
+  const valueEl=$(label),control=$(slider);
+  if(valueEl)valueEl.textContent=fmt(z);
+  if(control)control.value=String(z);
+  // Save immediately, even if the user navigates away before the hardware changes.
+  setStoredZoom(kind,z);
+  if(z>1.05&&modal==='camera-settings')rememberPreviewCamera();
+  zoomRequested={value:z,kind};
   void processZoomChanges();
-  // Also guard the live Settings preview against Safari resetting magnification.
   if(scanner&&cameraState==='live')watchZoom(scanner);
+ }
+ async function selectZoomTarget(target){
+  if(modal!=='camera-settings'||!['pots','boxes'].includes(target))return;
+  zoomPreviewTarget=target;
+  zoomRequested=null;
+  const selected=$('#camera-zoom-target');if(selected)selected.value=target;
+  const label=$('#camera-zoom-value');if(label)label.textContent=fmt(storedZoom(target));
+  if(scanner&&cameraState==='live'){
+   const range=supportedZoom(scanner);
+   if(range){
+    try{await applyActualZoom(storedZoom(target),scanner,{persist:false,kind:target})}
+    catch(err){status('Unable to apply '+target+' zoom: '+String(err?.message||err));}
+   }
+   updateZoomUI(scanner);
+   watchZoom(scanner);
+  }
  }
  async function chooseCamera(cameraId){
   if(modal!=='camera-settings')return;
@@ -397,8 +448,9 @@ const CameraSettings=(()=>{
   await setContinuousFocus(instance);
   if(scanner!==instance||cameraState!=='live')return;
   const range=supportedZoom(instance);
+  zoomRange=range;
   if(range){
-   const requested=Math.max(range.min,Math.min(range.max,saved.zoom));
+   const requested=Math.max(range.min,Math.min(range.max,storedZoom(activeZoomTarget())));
    const setting=Number(trackSettings(instance).zoom);
    if(Math.abs(requested-(Number.isFinite(setting)?setting:1))>0.03){
     try{await applyActualZoom(requested,instance,{persist:false})}
@@ -406,6 +458,7 @@ const CameraSettings=(()=>{
    }
   }
   watchZoom(instance);
+  if(page==='boxes'&&modal!=='camera-settings')updateBoxZoomUI(instance);
   if(modal==='camera-settings'){
    updateZoomUI(instance);
    if(!range)status('Camera live. Zoom is not exposed on this camera/browser; try selecting another rear camera.');
@@ -426,5 +479,5 @@ const CameraSettings=(()=>{
  function noteError(err){
   if(modal==='camera-settings')status('Camera could not start: '+String(err?.message||err)+'. Try Defaults or allow camera access.');
  }
- return {html,cameraConstraint,formats,scanConfig,chooseFormat,fastMatrixSelected,cropFraction,chooseEngine,chooseMode,onStarted,onStopped,monitor,start,chooseCamera,setZoom,reset,noteError,capabilities,trackSettings};
+ return {html,cameraConstraint,formats,scanConfig,chooseFormat,fastMatrixSelected,cropFraction,chooseEngine,chooseMode,onStarted,onStopped,monitor,start,chooseCamera,setZoom,selectZoomTarget,boxZoom:()=>saved.boxZoom,reset,noteError,capabilities,trackSettings};
 })();
