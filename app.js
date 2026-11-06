@@ -5,10 +5,13 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.5.3';
+const VERSION='1.6.0';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
+const DEMO_ACCOUNT_STORAGE='postmilk-fictional-demo-account-v1';
+const DEMO_AUTH_STORAGE='postmilk-demo-auth-v1';
+const APP_PREFERENCES_STORAGE='postmilk-user-preferences-v1';
 // One-time migration for the 70-animal TEST herd release. An old sampling
 // session includes previously linked IDs in localStorage, so clear that
 // session once without touching the user's camera settings/preferences.
@@ -20,7 +23,7 @@ const uid=()=>globalThis.crypto?.randomUUID?.()||String(Date.now())+Math.random(
 const timeNow=()=>new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 const timestamp=()=>new Date().toISOString();
 const demo=[['00001','2'],['00002','4'],['00003','14.2'],['00004','11.8'],['00005','12.6']];
-function fresh(){return {org:'Brook Farm Partnership',site:'Brook Farm',herd:'123450',session:'S-2410-087',start:'',end:'',yields:true,phase:'setup',animals:[],testAssignments:{},boxes:[],boxesConfirmed:false,changeRevision:0,nmrMockSentAt:'',nmrMockSentRevision:-1,closedAt:'',startedAt:'',confirmedAt:''};}
+function fresh(){return {org:'Example Meadow Farm (fictional)',site:'North Test Parlour',herd:'900101',session:'S-2410-087',start:'',end:'',yields:true,phase:'setup',animals:[],testAssignments:{},boxes:[],boxesConfirmed:false,changeRevision:0,nmrMockSentAt:'',nmrMockSentRevision:-1,closedAt:'',startedAt:'',confirmedAt:''};}
 function load(){
  let stored=null;
  try{
@@ -82,7 +85,81 @@ function readSessionRegistry(previous){
  if(hasOld)return [normaliseRecord(previous)];
  return [];
 }
-let data=load(),sessions=readSessionRegistry(data),activeRecordId='',page='sessions',modal='',selectedUid='',filter='all';
+// All built-in account/contact/site details are deliberately fictitious.
+// ".example" domains and 01632 960xxx telephone numbers are reserved for examples.
+// These records are local-only; there is no live customer, NMR or login service.
+function defaultDemoAccount(){
+ return {
+  farm:'Example Meadow Farm (fictional)',accountId:'DEMO-00421',
+  user:'Alex Example',role:'Farmer · DIY',email:'alex@example.test',
+  contact:'Jamie Sample',phone:'01632 960321',invoiceEmail:'accounts@example.test',
+  invoiceAddress:'14 Fiction Lane, Exampleton, ZZ1 1ZZ',
+  herds:['900101','900102','900103','900104','900105'],
+  sites:[
+   {id:'demo-site-1',name:'North Test Parlour',address:'14 Fiction Lane, Exampleton, ZZ1 1ZZ',type:'Herringbone',rows:2,stalls:10,herds:['900101'],yields:true},
+   {id:'demo-site-2',name:'West Test Parlour',address:'3 Sample Road, Exampleton, ZZ1 1ZY',type:'Herringbone',rows:2,stalls:8,herds:['900102'],yields:true},
+   {id:'demo-site-3',name:'Rotary Demo Parlour',address:'8 Imaginary Way, Exampleton, ZZ1 2ZZ',type:'Rotary',rows:1,stalls:40,herds:['900103','900104'],yields:false}
+  ]
+ };
+}
+function readDemoAccount(){
+ try{
+  const stored=JSON.parse(localStorage.getItem(DEMO_ACCOUNT_STORAGE)||'null');
+  if(stored&&Array.isArray(stored.sites)&&Array.isArray(stored.herds))return stored;
+ }catch{}
+ return defaultDemoAccount();
+}
+function saveDemoAccount(){
+ try{localStorage.setItem(DEMO_ACCOUNT_STORAGE,JSON.stringify(demoAccount));}catch{toast('Unable to save the demo account on this device.');}
+}
+function readDemoPrefs(){
+ try{return {...{addMode:'add',scanMode:'camera',quickScan:false,autoNext:true,showLinked:false,downloadAuto:true},...JSON.parse(localStorage.getItem(APP_PREFERENCES_STORAGE)||'null')}}catch{return {addMode:'add',scanMode:'camera',quickScan:false,autoNext:true,showLinked:false,downloadAuto:true}}
+}
+function saveDemoPrefs(){
+ try{localStorage.setItem(APP_PREFERENCES_STORAGE,JSON.stringify(demoPrefs))}catch{toast('Settings could not be saved on this device.')}
+}
+let demoAccount=readDemoAccount(),demoPrefs=readDemoPrefs(),demoAuth=false;
+try{demoAuth=localStorage.getItem(DEMO_AUTH_STORAGE)==='signed-in'}catch{}
+let demoSiteId='demo-site-1',wizardStep=1,wizardDraft=null,sessionListStatus='all',sessionListSite='all',sessionListSort='newest',animalRecordsFrom='sessions',issueReturn='issues',swapQuery='';
+function demoSite(){return demoAccount.sites.find(x=>x.id===demoSiteId)||demoAccount.sites[0]||null}
+function demoSiteDesc(s){return s.type==='Rotary'?'Rotary · '+s.stalls+' bails':'Herringbone · '+s.rows+' × '+s.stalls;}
+function sessionStatusLabel(rec){
+ if(rec.phase==='closed')return 'Closed · local';
+ if(rec.phase==='confirmed')return rec.boxesConfirmed?'Ready to close':'Boxes to scan';
+ return 'To sample';
+}
+function shortDate(date){if(!date)return 'Date not set';const d=new Date(date+'T12:00:00');return isNaN(d.getTime())?'Date not set':d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
+function accountScreen(){
+ const sites=demoAccount.sites.map(site=>'<button class="journey-list-row" data-action="open-demo-site" data-site-id="'+safe(site.id)+'"><strong>'+safe(site.name)+'</strong><span>'+safe(demoSiteDesc(site))+' · Herd '+safe(site.herds.join(', '))+'</span><b>›</b></button>').join('');
+ return ['<div class="journey-page"><div class="tinycap">DEMO ACCOUNT · NOT CONNECTED TO NMR</div><h2>'+safe(demoAccount.farm)+'</h2><section class="journey-card"><div class="tinycap">SIGNED IN USER (SIMULATED)</div><strong>'+safe(demoAccount.user)+'</strong><span>'+safe(demoAccount.role)+'</span><span>'+safe(demoAccount.email)+'</span></section><section class="journey-card"><div class="journey-card-head"><strong>INVOICING CONTACT</strong>'+btn('EDIT','edit-demo-contact','outline')+'</div><p>'+safe(demoAccount.contact)+'</p><p>'+safe(demoAccount.phone)+'</p><p>'+safe(demoAccount.invoiceEmail)+'</p><p>'+safe(demoAccount.invoiceAddress)+'</p></section><section class="journey-card"><div class="journey-card-head"><strong>PARLOUR SITES · '+demoAccount.sites.length+'</strong>'+btn('+ ADD SITE','add-demo-site','outline')+'</div>'+sites+'</section><section class="journey-card"><div class="tinycap">DEMO HERDS · '+demoAccount.herds.length+'</div>'+demoAccount.herds.map(h=>'<div class="journey-plain-row">'+safe(h)+'</div>').join('')+'</section><p class="hint">All names, addresses, phone numbers and emails here are fictional demonstration data.</p></div>',btn('SAMPLING SESSIONS','goto-sessions','secondary wide')];
+}
+function siteScreen(){
+ const site=demoSite();
+ if(!site)return ['<div class="notice">No site found.</div>',btn('ACCOUNT','goto-account','outline')];
+ return ['<div class="journey-page"><div class="tinycap">DIY SITE · LOCAL DEMO</div><h2>'+safe(site.name)+'</h2><section class="journey-card"><div class="tinycap">SITE</div><strong>'+safe(site.name)+'</strong><p>'+safe(site.address)+'</p></section><section class="journey-card"><div class="tinycap">PARLOUR</div><p>'+safe(demoSiteDesc(site))+'</p><div class="tinycap">LINKED HERDS</div><p>'+safe(site.herds.join(', ')||'None')+'</p><div class="tinycap">YIELDS</div><p>'+ (site.yields?'Record yields':'Not required')+'</p></section><p class="hint">Fictional sites and herds for prototype testing; these are not NMR master records.</p></div>',btn('EDIT SITE','edit-demo-site','secondary wide')+btn('ACCOUNT','goto-account','outline wide')];
+}
+function signInScreen(){
+ return ['<div class="journey-page"><div class="tinycap">DEMONSTRATION ACCESS · NO LIVE AUTHORISATION</div><h2>Milk Sampling</h2><p class="hint">Use the fictional account to explore the complete end-to-end workflow. No password, customer account or real NMR service is used.</p><section class="journey-card"><label class="field-label">DEMO USER</label><strong>'+safe(demoAccount.user)+'</strong><p>'+safe(demoAccount.email)+'</p><label class="field-label">ROLE</label><select id="demo-signin-role" class="input"><option value="farmer">Farmer · DIY</option><option value="sampler">Sampling operator</option></select><div class="notice">Device PM-DEMO-0142 · Authorisation simulated locally</div></section></div>',btn('ENTER DEMO APP','demo-sign-in','primary wide')];
+}
+function settingsOverviewScreen(){
+ return ['<div class="journey-page"><div class="tinycap">DEVICE · PM-DEMO-0142</div><h2>Settings</h2><section class="journey-card">'+[
+ ['sampling-settings','Sampling','Add '+demoPrefs.addMode+' · scan '+demoPrefs.scanMode],
+ ['camera-settings','Camera','Camera selection and zoom'],
+ ['data-settings','Data','Automatic demo animal-data preparation '+(demoPrefs.downloadAuto?'on':'off')],
+ ['about','About','PM-DEMO-0142 · version '+VERSION]
+ ].map(([id,label,description])=>'<button class="journey-list-row" data-action="settings-go" data-page="'+id+'"><strong>'+label+'</strong><span>'+safe(description)+'</span><b>›</b></button>').join('')+'</section></div>',''];
+}
+function samplingSettingsScreen(){
+ const pref=(id,label,options,value)=>'<label class="journey-setting"><span>'+label+'</span><select class="input" data-pref="'+id+'">'+options.map(([k,v])=>'<option value="'+k+'" '+(value===k?'selected':'')+'>'+v+'</option>').join('')+'</select></label>';
+ return ['<div class="journey-page"><h2>Sampling settings</h2><section class="journey-card">'+pref('addMode','Add animals mode',[['add','Add to list'],['add-and-scan','Add and scan']],demoPrefs.addMode)+pref('scanMode','Sample scanning',[['camera','Camera'],['scanner','External barcode scanner']],demoPrefs.scanMode)+pref('quickScan','Quick scan',[['false','Off'],['true','On']],String(demoPrefs.quickScan))+pref('autoNext','Automatically select next',[['true','On'],['false','Off']],String(demoPrefs.autoNext))+pref('showLinked','Show linked cows',[['false','Last linked only'],['true','Keep linked visible (other methods)']],String(demoPrefs.showLinked))+'</section><p class="hint">These preferences are stored locally. Some shared parlour behaviours are not implemented in this post-milking prototype.</p></div>',btn('DONE','goto-settings','secondary wide')];
+}
+function dataSettingsScreen(){
+ return ['<div class="journey-page"><h2>Data settings</h2><section class="journey-card"><label class="journey-setting"><span>Download animal data automatically (demo)</span><select class="input" data-pref="downloadAuto"><option value="true" '+(demoPrefs.downloadAuto?'selected':'')+'>On</option><option value="false" '+(!demoPrefs.downloadAuto?'selected':'')+'>Off</option></select></label><p class="hint">No network download is available. The local 70-animal test catalogue is always retained; the setting records the intended future behaviour.</p></section></div>',btn('DONE','goto-settings','secondary wide')];
+}
+function aboutScreen(){
+ return ['<div class="journey-page"><h2>About</h2><section class="journey-card"><div class="journey-plain-row">Device <strong>PM-DEMO-0142</strong></div><div class="journey-plain-row">Authorisation <strong>Local demo</strong></div><div class="journey-plain-row">NMR connection <strong>Not connected</strong></div><div class="journey-plain-row">App version <strong>'+safe(VERSION)+'</strong></div></section><p class="hint">No real sync is available; camera scanning and local JSON files remain usable.</p></div>',btn('DONE','goto-settings','secondary wide')];
+}
+let data=load(),sessions=readSessionRegistry(data),activeRecordId='',page=demoAuth?'sessions':'signin',modal='',selectedUid='',filter='all';
 try{activeRecordId=localStorage.getItem(ACTIVE_SESSION_STORAGE)||''}catch{}
 if(!sessions.some(x=>x.recordId===activeRecordId))activeRecordId=sessions[0]?.recordId||'';
 if(activeRecordId)data=sessions.find(x=>x.recordId===activeRecordId);
@@ -136,7 +213,7 @@ function sound(){try{const Audio=window.AudioContext||window.webkitAudioContext;
 const btn=(label,act,cls='',attrs='')=>`<button class="btn ${cls}" type="button" data-action="${act}" ${attrs}>${label}</button>`;
 function normalTime(value){let s=String(value||'').trim();if(!s)return '';if(/^\d{4}$/.test(s))s=s.slice(0,2)+':'+s.slice(2);const match=s.match(/^(\d{1,2}):(\d{2})$/);if(!match)return '';const h=+match[1],m=+match[2];return h<=23&&m<=59?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`:'';}
 function timeInput(id,value){return `<input class="time-input" id="${id}" value="${safe(value)}" type="text" inputmode="numeric" maxlength="5" placeholder="HH:MM" autocorrect="off" autocapitalize="off" autocomplete="off" spellcheck="false" aria-label="${id.includes('start')?'Milking start':'Milking end'} time" data-complete="${normalTime(value)?'1':'0'}">`;}
-function header(){let name={sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',boxes:'Scan sample boxes',tests:'Test management',data:'Data management'}[page];return `<div class="top"><div class="top-inner"><div class="top-name">${(page==='boxes'||page==='tests'||page==='data')?'<button type="button" class="box-back" data-action="goto-session" aria-label="Back to Session management">‹</button>':page==='session'?'<button type="button" class="box-back" data-action="goto-sessions" aria-label="Back to Sampling sessions">‹</button>':''}${name}</div><div class="top-actions"><span class="top-save" id="save-state">${pendingSave?'NOT SAVED':'SAVED'}</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button></div></div></div><div class="farm-strip">${page==='sessions'?'POST-MILKING · SESSION OVERVIEW':safe(data.site)+' · '+(page==='session'||page==='boxes'?'SESSION '+safe(data.session):'HERD '+safe(data.herd))}</div>`;}
+function header(){let name={signin:'Sign in',account:'DIY account',site:'DIY site',settings:'Settings','sampling-settings':'Sampling settings','data-settings':'Data settings',about:'About',sessions:'Sampling sessions',session:'Session management',linking:'Milk Sampling',animals:'Animals',boxes:'Scan sample boxes',tests:'Test management',data:'Data management'}[page];return `<div class="top"><div class="top-inner"><div class="top-name">${(page==='boxes'||page==='tests'||page==='data')?'<button type="button" class="box-back" data-action="goto-session" aria-label="Back to Session management">‹</button>':page==='session'?'<button type="button" class="box-back" data-action="goto-sessions" aria-label="Back to Sampling sessions">‹</button>':''}${name}</div><div class="top-actions"><span class="top-save" id="save-state">${pendingSave?'NOT SAVED':'SAVED'}</span><button class="menu-button" type="button" data-action="menu" aria-label="Main menu">☰</button></div></div></div><div class="farm-strip">${page==='sessions'?'POST-MILKING · SESSION OVERVIEW':safe(data.site)+' · '+(page==='session'||page==='boxes'?'SESSION '+safe(data.session):'HERD '+safe(data.herd))}</div>`;}
 function stage(number,title,state,content='',current=false){return `<section class="stage ${current?'current':state==='Complete'?'complete':''}">${current?'<span class="tinycap">CURRENT · NEXT STEP</span>':''}<div class="stage-row"><span class="stage-num">${state==='Complete'?'✓':number}</span><span class="stage-title">${safe(title)}</span><span class="stage-state ${state==='Complete'?'done':''}">${safe(state)}</span></div>${content}</section>`;}
 function detail(k,v){return `<div><span class="tinycap">${safe(k)}</span><div class="detail-value">${safe(v)}</div></div>`;}
 const TEST_TYPES=['JOHNES','BVD','PAG','NEO'];
@@ -416,7 +493,7 @@ function boxesScreen(){
   '</div>';
  return [html,footer];
 }
-function render(){const [html,foot]=({sessions:sessionsScreen,session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen,tests:testManagementScreen,data:dataManagementScreen}[page]||sessionsScreen)();$('#app').innerHTML=`<div class="app">${header()}<main class="body" id="main-scroll">${html}</main>${foot?`<footer class="bottom">${foot}</footer>`:''}</div>`;updateDebug();}
+function render(){const [html,foot]=({signin:signInScreen,account:accountScreen,site:siteScreen,settings:settingsOverviewScreen,'sampling-settings':samplingSettingsScreen,'data-settings':dataSettingsScreen,about:aboutScreen,sessions:sessionsScreen,session:sessionScreen,linking:linkingScreen,animals:animalsScreen,boxes:boxesScreen,tests:testManagementScreen,data:dataManagementScreen}[page]||sessionsScreen)();$('#app').innerHTML=`<div class="app">${header()}<main class="body" id="main-scroll">${html}</main>${foot?`<footer class="bottom">${foot}</footer>`:''}</div>`;updateDebug();}
 function refreshLinkingAfterScan(){
  // Intentionally never render() or replace #qr-reader during a successful QR read.
  const last=$('#last-linked');if(last)last.innerHTML=latest()?animalCard(latest(),{latest:true}):'<div class="no-last">The last linked animal will appear here in green</div>';
@@ -673,7 +750,12 @@ function openModal(name,which='',options={}){
  stopCamera();modal=name;selectedUid=which||'';
  const animal=animals().find(a=>a.uid===selectedUid);
  let html='';
- if(name==='menu')html=`<h2>Main menu</h2><span class="tinycap">CLEAN BUILD · VERSION ${VERSION}</span>${[['goto-sessions','Sampling sessions'],['goto-session','Current session'],['goto-tests','Test management'],['goto-data','Data management'],['goto-linking','Post-milking linking'],['goto-animals','All animals'],['goto-boxes','Sample boxes'],['camera-settings','Camera settings'],['view-test-herd','Test herd · 70 animals']].map(([k,v])=>`<button class="menu-row" data-action="${k}">${v}<span>›</span></button>`).join('')}<div class="notice">All data stays on this device. There is no NMR connection in this prototype.</div>${btn('LOAD DEMO ANIMALS','load-demo','outline wide')}${btn('RESET DEMO SESSION','reset','danger wide')}`;
+ if(name==='menu')html=`<h2>Main menu</h2><span class="tinycap">DEMO BUILD · VERSION ${VERSION}</span>${[
+ ['ACCOUNT',[['goto-account','DIY Account'],['goto-settings','Settings']]],
+ ['SESSIONS',[['goto-sessions','Sampling sessions'],['new-session','Create ad hoc session'],['goto-session','Current session']]],
+ ['SAMPLING',[['goto-linking','Post-milking linking'],['goto-animals','Animals and issues'],['goto-tests','Test management'],['goto-boxes','Sample boxes']]],
+ ['DATA',[['goto-data','Data management'],['view-test-herd','Demo herd · 70 animals']]]
+ ].map(([section,actions])=>'<div class="tinycap journey-menu-heading">'+section+'</div>'+actions.map(([key,title])=>'<button class="menu-row" data-action="'+key+'">'+title+'<span>›</span></button>').join('')).join('')}<div class="notice">Fictional account. Data stays on this device; NMR is not connected.</div>${btn('LOAD DEMO ANIMALS','load-demo','outline wide')}${btn('SIGN OUT','demo-sign-out','outline wide')}${btn('RESET DEMO SESSION','reset','danger wide')}`;
  if(name==='new-session')html='<h2>New sampling session</h2><p class="hint">Create a separate sampling session; existing sessions will be preserved.</p>'+
   '<label class="field-label">FARM / SITE</label><input class="input" id="new-session-site" value="'+safe(data.site)+'">'+
   '<label class="field-label">HERD NUMBER</label><input class="input" id="new-session-herd" value="'+safe(data.herd)+'">'+
@@ -687,6 +769,26 @@ function openModal(name,which='',options={}){
    '<h2>'+safe(animal.line)+'</h2><p class="hint">Sample ID '+safe(animal.sample)+'</p><div class="tinycap">SELECT TESTS</div>'+
    '<div class="add-test-options">'+TEST_TYPES.map(t=>'<button type="button" class="add-test-option '+(testDraft.has(t)?'selected':'')+'" data-action="toggle-add-test" data-test="'+t+'"><span class="test-check">'+(testDraft.has(t)?'✓':'')+'</span>'+t+'</button>').join('')+'</div>'+
    '<div class="buttons">'+btn('CANCEL','modal-close','outline')+'<button type="button" class="btn secondary" data-action="save-add-test" id="save-add-test">DONE</button></div></div>';
+ }
+ if(name==='edit-demo-contact')html='<h2>Fictional invoicing contact</h2>'+
+  '<label class="field-label">NAME</label><input class="input" id="demo-contact-name" value="'+safe(demoAccount.contact)+'">'+
+  '<label class="field-label">PHONE</label><input class="input" id="demo-contact-phone" value="'+safe(demoAccount.phone)+'">'+
+  '<label class="field-label">EMAIL</label><input class="input" id="demo-contact-email" value="'+safe(demoAccount.invoiceEmail)+'">'+
+  '<label class="field-label">ADDRESS</label><input class="input" id="demo-contact-address" value="'+safe(demoAccount.invoiceAddress)+'">'+
+  '<p class="hint">Only fictional sample details should be used in this prototype.</p>'+
+  '<div class="buttons">'+btn('CANCEL','modal-close','outline')+btn('SAVE','save-demo-contact','secondary')+'</div>';
+ if(name==='demo-site-form'){
+  const editing=!!which,site=editing?demoSite():{name:'',address:'',type:'Herringbone',rows:2,stalls:10,herds:[],yields:true};
+  const free=demoAccount.herds.filter(h=>!demoAccount.sites.some(q=>q.id!==(editing?site.id:null)&&q.herds.includes(h)));
+  html='<h2>'+(editing?'Edit site':'Add site')+'</h2>'+
+   '<label class="field-label">SITE NAME</label><input class="input" id="demo-site-name" value="'+safe(site.name)+'">'+
+   '<label class="field-label">ADDRESS (FICTIONAL)</label><input class="input" id="demo-site-address" value="'+safe(site.address)+'">'+
+   '<label class="field-label">PARLOUR TYPE</label><select class="input" id="demo-site-type">'+['Herringbone','Rotary','Other'].map(t=>'<option '+(site.type===t?'selected':'')+'>'+t+'</option>').join('')+'</select>'+
+   '<label class="field-label">ROWS / ROTARY SETS</label><input class="input" id="demo-site-rows" type="number" min="1" max="8" value="'+site.rows+'">'+
+   '<label class="field-label">STALLS PER ROW / BAILS</label><input class="input" id="demo-site-stalls" type="number" min="1" max="100" value="'+site.stalls+'">'+
+   '<label class="field-label">AVAILABLE HERDS</label><div class="journey-checklist">'+free.map(h=>'<label><input type="checkbox" data-site-herd="'+safe(h)+'" '+(site.herds.includes(h)?'checked':'')+'> Herd '+safe(h)+'</label>').join('')+'</div>'+
+   '<label class="journey-check"><input type="checkbox" id="demo-site-yields" '+(site.yields?'checked':'')+'> Record yields</label>'+
+   '<div class="buttons">'+btn('CANCEL','modal-close','outline')+btn(editing?'SAVE CHANGES':'ADD SITE','save-demo-site','secondary')+'</div>';
  }
  if(name==='camera-settings')html=CameraSettings.html();
  if(name==='edit-session')html=`<h2>Edit session</h2><label class="field-label">ORGANISATION</label><input class="input" id="edit-org" value="${safe(data.org)}"><label class="field-label">SITE / FARM</label><input class="input" id="edit-site" value="${safe(data.site)}"><label class="field-label">HERD</label><input class="input" id="edit-herd" value="${safe(data.herd)}"><label class="field-label">SESSION ID</label><input class="input" id="edit-session-id" value="${safe(data.session)}"><div class="time-row"><label><span class="tinycap">MILKING START</span>${timeInput('edit-start',data.start)}</label><label><span class="tinycap">MILKING END</span>${timeInput('edit-end',data.end)}</label></div><label style="display:flex;align-items:center;gap:9px"><input type="checkbox" id="edit-yields" ${data.yields?'checked':''}> Yields required</label><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('SAVE','save-session','secondary')}</div>`;
@@ -762,6 +864,38 @@ async function importJSON(file){if(!file)return;try{const text=await file.text()
 function doAction(action,button){
  switch(action){
  case 'menu':openModal('menu');break;
+ case 'demo-sign-in':{
+  demoAccount.role=$('#demo-signin-role')?.value==='sampler'?'Sampling operator':'Farmer · DIY';
+  saveDemoAccount();demoAuth=true;
+  try{localStorage.setItem(DEMO_AUTH_STORAGE,'signed-in')}catch{}
+  navigate('sessions');break;
+ }
+ case 'demo-sign-out':demoAuth=false;try{localStorage.removeItem(DEMO_AUTH_STORAGE)}catch{}navigate('signin');break;
+ case 'goto-account':navigate('account');break;
+ case 'goto-settings':navigate('settings');break;
+ case 'settings-go':if(button.dataset.page==='camera-settings')openModal('camera-settings');else navigate(button.dataset.page);break;
+ case 'edit-demo-contact':openModal('edit-demo-contact');break;
+ case 'save-demo-contact':{
+  demoAccount.contact=$('#demo-contact-name')?.value.trim()||demoAccount.contact;
+  demoAccount.phone=$('#demo-contact-phone')?.value.trim()||demoAccount.phone;
+  demoAccount.invoiceEmail=$('#demo-contact-email')?.value.trim()||demoAccount.invoiceEmail;
+  demoAccount.invoiceAddress=$('#demo-contact-address')?.value.trim()||demoAccount.invoiceAddress;
+  saveDemoAccount();closeModal(false);render();break;
+ }
+ case 'open-demo-site':demoSiteId=button.dataset.siteId;navigate('site');break;
+ case 'add-demo-site':openModal('demo-site-form');break;
+ case 'edit-demo-site':openModal('demo-site-form',demoSiteId);break;
+ case 'save-demo-site':{
+  const name=$('#demo-site-name')?.value.trim(),address=$('#demo-site-address')?.value.trim();
+  const rows=Number($('#demo-site-rows')?.value),stalls=Number($('#demo-site-stalls')?.value);
+  if(!name||!address||!Number.isSafeInteger(rows)||rows<1||rows>8||!Number.isSafeInteger(stalls)||stalls<1||stalls>100)return toast('Complete the site details and choose valid parlour dimensions.');
+  const herds=$('[data-site-herd]:checked').map(el=>el.dataset.siteHerd);
+  if(!herds.length)return toast('Link at least one available herd.');
+  const existing=modal==='demo-site-form'&&selectedUid?demoSite():null;
+  const site={id:existing?.id||uid(),name,address,type:$('#demo-site-type')?.value||'Other',rows,stalls,herds,yields:!!$('#demo-site-yields')?.checked};
+  if(existing)Object.assign(existing,site);else demoAccount.sites.push(site);
+  demoSiteId=site.id;saveDemoAccount();closeModal(false);navigate('site');break;
+ }
  case 'goto-sessions':navigate('sessions');break;
  case 'goto-data':if(!activeRecordId)return toast('Create or select a session first.');navigate('data');break;
  case 'download-compiled-json':downloadCompiledJSON();break;
@@ -941,6 +1075,12 @@ document.addEventListener('input',e=>{
  if(!t)el.dataset.complete='0';
 });
 document.addEventListener('change',e=>{
+ if(e.target.dataset?.pref){
+  const key=e.target.dataset.pref,value=e.target.value;
+  if(!Object.hasOwn(demoPrefs,key))return;
+  demoPrefs[key]=['quickScan','autoNext','showLinked','downloadAuto'].includes(key)?value==='true':value;
+  saveDemoPrefs();render();return;
+ }
  if(e.target.matches?.('[data-test-uid]')&&page==='tests'){
   const sampleUid=e.target.dataset.testUid;
   if(!sampledAnimals().some(a=>a.uid===sampleUid))return;
