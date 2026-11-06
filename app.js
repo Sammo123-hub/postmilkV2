@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.6.1';
+const VERSION='1.7.0';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -23,7 +23,7 @@ const uid=()=>globalThis.crypto?.randomUUID?.()||String(Date.now())+Math.random(
 const timeNow=()=>new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 const timestamp=()=>new Date().toISOString();
 const demo=[['00001','2'],['00002','4'],['00003','14.2'],['00004','11.8'],['00005','12.6']];
-function fresh(){return {org:'Example Meadow Farm (fictional)',site:'North Test Parlour',herd:'900101',session:'S-2410-087',start:'',end:'',yields:true,phase:'setup',animals:[],testAssignments:{},boxes:[],boxesConfirmed:false,changeRevision:0,nmrMockSentAt:'',nmrMockSentRevision:-1,closedAt:'',startedAt:'',confirmedAt:''};}
+function fresh(){return {org:'Example Meadow Farm (fictional)',site:'North Test Parlour',herd:'900101',session:'S-2410-087',start:'',end:'',yields:true,phase:'setup',animals:[],testAssignments:{},boxes:[],boxesConfirmed:false,changeRevision:0,nmrMockSentAt:'',nmrMockSentRevision:-1,closedAt:'',labReceivedAt:'',startedAt:'',confirmedAt:''};}
 function load(){
  let stored=null;
  try{
@@ -70,6 +70,7 @@ function normaliseRecord(raw){
   return {...a,tests:linkedSample?[...new Set([...existing,...prior])].filter(t=>['JOHNES','BVD','PAG','NEO'].includes(t)):[]};
  });
  result.testAssignments={};
+ result.labReceivedAt=typeof result.labReceivedAt==='string'?result.labReceivedAt:'';
  result.boxes=Array.isArray(result.boxes)?result.boxes:[];
  return result;
 }
@@ -124,7 +125,7 @@ let demoSiteId='demo-site-1',wizardStep=1,wizardDraft=null,sessionListStatus='al
 function demoSite(){return demoAccount.sites.find(x=>x.id===demoSiteId)||demoAccount.sites[0]||null}
 function demoSiteDesc(s){return s.type==='Rotary'?'Rotary · '+s.stalls+' bails':'Herringbone · '+s.rows+' × '+s.stalls;}
 function sessionStatusLabel(rec){
- if(rec.phase==='closed')return 'Closed · local';
+ if(rec.phase==='closed')return rec.labReceivedAt?'Closed · lab receipt simulated':'Closed · local';
  if(rec.phase==='confirmed')return rec.boxesConfirmed?'Ready to close':'Boxes to scan';
  return 'To sample';
 }
@@ -294,6 +295,7 @@ function header(){
 function stage(number,title,state,content='',current=false){return `<section class="stage ${current?'current':state==='Complete'?'complete':''}">${current?'<span class="tinycap">CURRENT · NEXT STEP</span>':''}<div class="stage-row"><span class="stage-num">${state==='Complete'?'✓':number}</span><span class="stage-title">${safe(title)}</span><span class="stage-state ${state==='Complete'?'done':''}">${safe(state)}</span></div>${content}</section>`;}
 function detail(k,v){return `<div><span class="tinycap">${safe(k)}</span><div class="detail-value">${safe(v)}</div></div>`;}
 const TEST_TYPES=['JOHNES','BVD','PAG','NEO'];
+const testsLocked=()=>!!data.labReceivedAt;
 let currentTest='JOHNES',testFilter='all',testQuery='',testDraft=null,testManagerDraft=new Set();
 function sampledAnimals(){return linked();}
 function animalTests(animal){
@@ -304,7 +306,7 @@ function resetTestDraft(){
  testManagerDraft=new Set(sampledAnimals().filter(a=>animalTests(a).includes(currentTest)).map(a=>a.uid));
 }
 function assignSampledTest(animalUid,test,enabled){
- if(!TEST_TYPES.includes(test))return false;
+ if(testsLocked()||!TEST_TYPES.includes(test))return false;
  const animal=sampledAnimals().find(a=>a.uid===animalUid);
  if(!animal)return false;
  const chosen=new Set(animalTests(animal));
@@ -313,6 +315,7 @@ function assignSampledTest(animalUid,test,enabled){
  return true;
 }
 function commitTestSelection(){
+ if(testsLocked())return false;
  let changed=false;
  for(const animal of sampledAnimals()){
   const selected=testManagerDraft.has(animal.uid);
@@ -346,19 +349,19 @@ function sessionsScreen(){
   '<button type="button" class="btn primary wide" data-action="new-session">+ NEW SESSION</button></div>',''];
 }
 function testManagementScreen(){
- const sampled=sampledAnimals();
+ const sampled=sampledAnimals(),locked=testsLocked();
  const view=sampled.filter(a=>(testFilter==='with'?testManagerDraft.has(a.uid):testFilter==='without'?!testManagerDraft.has(a.uid):true)&&(!testQuery||a.line.includes(testQuery)||a.sample.includes(testQuery)));
- const rows=view.map(a=>{const existing=animalTests(a);return '<label class="test-manager-row"><input type="checkbox" data-test-uid="'+safe(a.uid)+'" '+(testManagerDraft.has(a.uid)?'checked':'')+'><span class="test-manager-animal"><span class="test-manager-main"><strong>'+safe(a.line)+'</strong><span class="test-manager-sample" aria-label="Sample ID '+safe(a.sample)+'">'+safe(a.sample)+'</span></span>'+(existing.length?'<span class="test-manager-assignments">Tests: '+existing.map(t=>safe(t)).join(', ')+'</span>':'')+'</span></label>';}).join('');
+ const rows=view.map(a=>{const existing=animalTests(a);return '<label class="test-manager-row"><input type="checkbox" data-test-uid="'+safe(a.uid)+'" '+(testManagerDraft.has(a.uid)?'checked':'')+' '+(locked?'disabled':'')+'><span class="test-manager-animal"><span class="test-manager-main"><strong>'+safe(a.line)+'</strong><span class="test-manager-sample" aria-label="Sample ID '+safe(a.sample)+'">'+safe(a.sample)+'</span></span>'+(existing.length?'<span class="test-manager-assignments">Tests: '+existing.map(t=>safe(t)).join(', ')+'</span>':'')+'</span></label>';}).join('');
  const selected=testManagerDraft.size;
  return ['<div class="test-management"><div class="tinycap">TEST MANAGEMENT · '+sampled.length+' SAMPLED ANIMALS</div>'+
-  '<p class="hint">Only sampled animals in this session are shown. Each sample can be used for multiple tests.</p>'+
+  '<p class="hint">Only sampled animals in this session are shown. Each sample can be used for multiple tests.</p>'+(locked?'<div class="notice ok">LAB RECEIPT SIMULATED · Tests are now read-only.</div>':'')+
   '<div class="test-tabs">'+TEST_TYPES.map(t=>'<button type="button" data-action="test-select" data-test="'+t+'" class="'+(t===currentTest?'active':'')+'">'+t+'</button>').join('')+'</div>'+
   '<div class="test-filter-row">'+[['with','WITH TEST'],['without','WITHOUT TEST'],['all','ALL']].map(([k,v])=>'<button type="button" data-action="test-filter" data-filter="'+k+'" class="'+(k===testFilter?'active':'')+'">'+v+'</button>').join('')+'</div>'+
   '<input class="input" id="test-search" type="search" placeholder="Search line or sample ID" value="'+safe(testQuery)+'">'+
-  '<button type="button" class="btn outline wide" data-action="test-select-all" '+(view.length?'':'disabled')+'>SELECT ALL SHOWN</button>'+
+  '<button type="button" class="btn outline wide" data-action="test-select-all" '+(view.length&&!locked?'':'disabled')+'>SELECT ALL SHOWN</button>'+
   '<div class="test-management-rows">'+(rows||'<p class="hint">'+(sampled.length?'No sampled animals match this filter.':'No sampled animals yet. Link sample pots to animals first.')+'</p>')+'</div></div>',
   '<div class="test-management-actions">'+
-  '<button type="button" class="btn outline" data-action="test-save" '+(sampled.length?'':'disabled')+'>SAVE '+currentTest+' · '+selected+' ANIMALS</button>'+
+  '<button type="button" class="btn outline" data-action="test-save" '+(sampled.length&&!locked?'':'disabled')+'>SAVE '+currentTest+' · '+selected+' ANIMALS</button>'+
   '<button type="button" class="btn secondary" data-action="test-done">DONE</button></div>'];
 }
 // Data Management is a local-only testing hub. A simulated NMR delivery is
@@ -452,6 +455,7 @@ function dataManagementScreen(){
   (outboundSnapshot()?btn('DOWNLOAD COMPILED JSON','download-compiled-json','outline wide'):'')+
   '<p class="hint">'+safe(status.detail)+'</p>'+
   '<p class="hint">Exporting the session JSON records both timestamps together in this prototype. NMR is not connected.</p></section>';
+ const lab='<section class="data-hub-card"><div class="tinycap">LABORATORY · SIMULATED</div><p class="hint">'+(data.labReceivedAt?'Received '+safe(formatExportTime(data.labReceivedAt))+'. Tests are locked.':data.phase==='closed'?'Awaiting simulated laboratory receipt.':'Session must be closed before laboratory receipt.')+'</p>'+(data.phase==='closed'&&!testsLocked()?btn('SIMULATE LAB RECEIPT','ask-lab-receipt','outline wide'):'')+'</section>';
  const inbound='<section class="data-hub-card"><div class="tinycap">INBOUND · LOCAL DATA</div>'+
   '<div class="data-hub-row"><strong>'+HerdDemo.HERD.length+' demo herd animals</strong><span>Test catalogue loaded locally · not received from NMR</span></div>'+
   '<div class="data-hub-row"><strong>Session JSON</strong><span>Import a previously exported sampling session as a separate record</span></div>'+
@@ -471,7 +475,7 @@ function dataManagementScreen(){
   btn('GENERATE LINKS & YIELDS','data-auto-link','secondary',unlinked.length&&!readOnly?'':'disabled')+'</div></section>';
  return ['<div class="data-hub"><div class="tinycap">ACTIVE SESSION · '+safe(data.session)+'</div>'+
   '<p class="hint">Track data coming into and leaving this device, and prepare realistic test sessions.</p>'+
-  summary+out+inbound+files+test+'</div>',btn('BACK TO SESSION','goto-session','outline wide')];
+  summary+out+lab+inbound+files+test+'</div>',btn('BACK TO SESSION','goto-session','outline wide')];
 }
 function sessionScreen(){
  const status=data.phase==='closed'?'Closed':data.phase==='confirmed'?'Completing session':data.phase==='setup'?'Not started':'In progress';
@@ -484,10 +488,10 @@ function sessionScreen(){
  else body=`${btn('OPEN SAMPLE LINKING','goto-linking','secondary wide')}<div style="height:7px"></div>${btn('ALL SAMPLES LINKED','confirm-linking','outline wide')}`;
  const sampledCount=sampledAnimals().length;
  const testedCount=sampledAnimals().filter(a=>animalTests(a).length>0).length;
- const addTestsState=!sampledCount?'Locked':testedCount?testedCount+' with tests':'Optional';
+ const addTestsState=testsLocked()?'Locked · lab receipt':!sampledCount?'Locked':testedCount?testedCount+' with tests':'Optional';
  const addTestsContent=sampledCount
   ?'<div class="hint">'+testedCount+' of '+sampledCount+' sampled animals have tests. Changes are allowed until laboratory receipt.</div>'+
-   btn(testedCount?'MANAGE TESTS':'ADD TESTS','goto-tests','secondary wide')
+   btn(testsLocked()?'VIEW TESTS':testedCount?'MANAGE TESTS':'ADD TESTS','goto-tests','secondary wide')
   :'';
  const boxesReady=data.phase==='confirmed'&&!blockingIssues();
  const stages=stage(1,'Sample linking',stage1,body,data.phase!=='confirmed'&&data.phase!=='closed')+
@@ -497,7 +501,8 @@ function sessionScreen(){
  btn(blockingIssues()?'RESOLVE ISSUES':'REVIEW ISSUES','goto-issues','outline wide'):'')+
  stage(4,'Add tests',addTestsState,addTestsContent,!!sampledCount&&data.phase!=='closed')+
  stage(5,'Sample boxes',data.boxesConfirmed?'Complete':boxesReady?'Outstanding':'Locked',boxesReady?btn('SCAN SAMPLE BOXES','goto-boxes','secondary wide'):'');
- const html=`<div class="tinycap">SESSION STATUS</div><div class="heading">${status}</div><section class="card"><div class="details-head"><span class="tinycap">SESSION DETAILS</span>${data.phase!=='closed'?btn('EDIT','edit-session','secondary smallbtn'):'<span>READ ONLY</span>'}</div><div class="details-grid">${detail('ORGANISATION',data.org)}${detail('SITE · ST-120455',data.site)}${detail('HERD',data.herd)}${detail('METHOD','Post-milking')}${detail('MILKING',`${data.start||'—'} – ${data.end||'—'}`)}${detail('SESSION ID',data.session)}${detail('YIELDS',data.yields?'Required':'Not required')}${detail('DEVICES','1 device')}</div></section>${stages}`;
+ const labStage=data.phase==='closed'?stage(6,'Laboratory receipt',testsLocked()?'Received · simulated':'Not recorded',testsLocked()?'<div class="notice ok">Received '+safe(formatExportTime(data.labReceivedAt))+' (simulation only). Test assignments are locked.</div>':'<p class="hint">Demo-only laboratory arrival. No actual external connection.</p>'+btn('SIMULATE LAB RECEIPT','ask-lab-receipt','outline wide')):'';
+ const html=`<div class="tinycap">SESSION STATUS</div><div class="heading">${status}</div><section class="card"><div class="details-head"><span class="tinycap">SESSION DETAILS</span>${data.phase!=='closed'?btn('EDIT','edit-session','secondary smallbtn'):'<span>READ ONLY</span>'}</div><div class="details-grid">${detail('ORGANISATION',data.org)}${detail('SITE · ST-120455',data.site)}${detail('HERD',data.herd)}${detail('METHOD','Post-milking')}${detail('MILKING',`${data.start||'—'} – ${data.end||'—'}`)}${detail('SESSION ID',data.session)}${detail('YIELDS',data.yields?'Required':'Not required')}${detail('DEVICES','1 device')}</div></section>${stages}${labStage}`;
  const foot=data.phase==='closed'?'':btn('CLOSE SAMPLING SESSION','ask-close','primary wide',data.phase==='confirmed'&&data.boxesConfirmed&&!blockingIssues()?'':'disabled');
  return [html,foot];
 }
@@ -636,6 +641,7 @@ function refreshLinkingAfterScan(){
 function scanStatus(message,isError=false){const el=modal==='capture'?$('#capture-status'):$('#scan-status');if(el){el.textContent=message;el.classList.toggle('error',isError);if(page==='linking'||page==='boxes'||modal==='capture')el.hidden=!isError;}updateDebug();}
 function flash(){const e=$('#scan-affirm');if(!e)return;e.textContent=page==='boxes'?'✓ BOX RECORDED':'✓ LINKED';e.hidden=false;setTimeout(()=>{if(e.isConnected)e.hidden=true},520);}
 function linkSample(raw,specificUid=''){
+ if(data.phase!=='linking'){toast('Reopen linking to edit samples.');return false;}
  const code=String(raw??'').trim();if(!code){toast('Enter a Sample ID');return false}
  if(linked().some(a=>a.sample===code)){scanStatus(`Code recognised, but Sample ID ${code} is already linked to an animal.`,true);return false}
  const target=specificUid?animals().find(a=>a.uid===specificUid):next();
@@ -647,6 +653,7 @@ function linkSample(raw,specificUid=''){
  return true;
 }
 function boxScan(raw){
+ if(data.phase!=='confirmed'||blockingIssues()){toast('Finish linking and resolve blocking issues before adding boxes.');return false;}
  const code=String(raw||'').trim();if(!code)return false;
  if(data.boxes.some(b=>b.id===code)){scanStatus('Box '+code+' has already been scanned.',true);return false;}
  data.boxes.push({id:code,time:timeNow()});data.boxesConfirmed=false;store();sound();
@@ -902,6 +909,7 @@ function openModal(name,which='',options={}){
    '<div class="add-test-options">'+TEST_TYPES.map(t=>'<button type="button" class="add-test-option '+(testDraft.has(t)?'selected':'')+'" data-action="toggle-add-test" data-test="'+t+'"><span class="test-check">'+(testDraft.has(t)?'✓':'')+'</span>'+t+'</button>').join('')+'</div>'+
    '<div class="buttons">'+btn('CANCEL','modal-close','outline')+'<button type="button" class="btn secondary" data-action="save-add-test" id="save-add-test">DONE</button></div></div>';
  }
+ if(name==='add-test'&&animal?.sample&&testsLocked())html='<h2>Tests · read-only</h2><p class="hint">Simulated laboratory receipt recorded. Test assignments can no longer be changed.</p><div class="journey-plain-row">Animal <strong>'+safe(animal.line)+'</strong></div><div class="journey-plain-row">Sample ID <strong>'+safe(animal.sample)+'</strong></div><div class="journey-plain-row">Tests <strong>'+safe(animalTests(animal).join(', ')||'None')+'</strong></div>'+btn('DONE','modal-close','secondary wide');
  if(name==='swap-animal')html=swapPickerMarkup();
  if(name==='amend-yield'&&animal)html='<h2>Amend milk yield</h2><div class="tinycap">ANIMAL '+safe(animal.line)+'</div><div class="tinycap">SAMPLE '+safe(animal.sample||'—')+'</div>'+
   '<label class="field-label">YIELD (KG)</label><input id="amend-yield-value" class="input" inputmode="decimal" type="number" min="0" step="0.1" value="'+safe(animal.yield||'')+'">'+
@@ -931,6 +939,7 @@ function openModal(name,which='',options={}){
  if(name==='add-animal')html=`<h2>Add cow</h2><p class="hint">Enter the line number written on the pot lid.</p><label class="field-label">ANIMAL LINE NUMBER</label><input class="input" id="new-line" maxlength="25" autocomplete="off" inputmode="numeric" placeholder="e.g. 00207"><label class="field-label">YIELD (kg) ${data.yields?'':'(optional)'}</label><input class="input" id="new-yield" type="number" min="0" step="0.1" inputmode="decimal" placeholder="e.g. 14.2"><div class="buttons">${btn('DONE','modal-close','outline')}${btn('ADD COW','save-animal','primary')}</div>`;
  if(name==='manual')html=`<h2>${page==='boxes'?'Add box number manually':'Enter Sample ID'}</h2><p class="hint">${page==='boxes'?'Enter the barcode number printed on the sample box. It will be added to the scanned-box list.':'Manual entry is a fallback; the camera should scan continuously during normal linking.'}</p><label class="field-label">${page==='boxes'?'BOX NUMBER':'SAMPLE ID'}</label><input class="input" id="manual-id" autocomplete="off" placeholder="${page==='boxes'?'Box barcode number':'Scan code value'}"><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn(page==='boxes'?'ADD BOX':'LINK','save-manual','secondary')}</div>`;
  if(name==='animal'&&animal){html=`<h2>Animal ${safe(animal.line)}</h2><div class="notice">Status: ${animal.sample?'Linked to '+safe(animal.sample):animal.noSampleReason?'No sample — '+safe(animal.noSampleReason):'Awaiting sample'}</div>${!animal.sample&&!animal.noSampleReason&&data.phase==='linking'?btn('TYPE SAMPLE ID','type-animal-sample','secondary wide'):''}<label class="field-label">LINE NUMBER</label><input class="input" id="animal-line" value="${safe(animal.line)}"><label class="field-label">YIELD (kg)</label><input class="input" id="animal-yield" type="number" step="0.1" min="0" value="${safe(animal.yield)}"><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('SAVE DETAILS','save-animal-details','secondary')}</div>${animal.sample?btn('+ ADD TEST','add-test','outline wide')+btn('REMOVE SAMPLE LINK','unlink-animal','outline wide'):!animal.noSampleReason?btn('MARK NO SAMPLE','no-sample','soft wide'):btn('UNDO NO SAMPLE','undo-no-sample','soft wide')}${btn('REMOVE ANIMAL','remove-animal','danger wide')}`;}
+ if(name==='animal'&&animal&&data.phase==='closed')html='<h2>Animal '+safe(animal.line)+'</h2><div class="notice ok">Session closed · sampling record read-only</div><div class="journey-plain-row">Sample ID <strong>'+safe(animal.sample||'—')+'</strong></div><div class="journey-plain-row">Yield <strong>'+safe(animal.yield||'—')+'</strong></div><div class="journey-plain-row">Tests <strong>'+safe(animalTests(animal).join(', ')||'None')+'</strong></div>'+(animal.sample?btn(testsLocked()?'VIEW TESTS':'ADD / CHANGE TESTS','add-test','outline wide'):'')+btn('DONE','modal-close','secondary wide');
  if(name==='manual-animal'&&animal){
   const position=animals().indexOf(animal)+1;
   const numericKeys=['1','2','3','4','5','6','7','8','9','CLR','0','⌫'];
@@ -960,6 +969,7 @@ function openModal(name,which='',options={}){
  if(name==='herd-catalog')html=HerdDemo.catalog();
  if(name==='no-sample'&&animal)html=`<h2>No sample: ${safe(animal.line)}</h2><label class="field-label">REASON (OPTIONAL)</label><select class="input" id="no-sample-reason"><option>Not sampled</option><option>Dry</option><option>Sold</option><option>Antibiotics</option><option>Animal absent</option><option>Sample lost</option><option>Insufficient milk</option><option>Other</option></select><div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','save-no-sample','secondary')}</div>`;
  if(name==='confirm-linking')html=`<h2>All samples linked?</h2><p class="hint">${waiting().length?`${waiting().length} animals are still awaiting samples. Link them or mark them as No sample before confirming.`:'All animals have been dealt with. Confirm this stage to continue to sample boxes.'}</p>${blockingIssues()?`<div class="notice warning">Duplicate animal records or Sample IDs must be resolved first.</div>`:''}<div class="buttons">${btn('BACK','modal-close','outline')}${btn('CONFIRM','do-confirm-linking','secondary',canFinish()?'':'disabled')}</div>`;
+ if(name==='confirm-lab-receipt')html='<h2>Simulate laboratory receipt?</h2><p class="hint">This marks samples received at the laboratory for this local demo. Test assignments become permanently read-only. No actual NMR or laboratory service is connected.</p><div class="buttons">'+btn('CANCEL','modal-close','outline')+btn('CONFIRM DEMO RECEIPT','confirm-lab-receipt','danger')+'</div>';
  if(name==='confirm-close')html=`<h2>Close sampling session?</h2><p class="hint">Closing makes sample linking and boxes read-only. Tests remain editable until laboratory receipt. This prototype does not send data to NMR; use Data Management to export JSON.</p><div class="buttons">${btn('CANCEL','modal-close','outline')}${btn('CLOSE SESSION','do-close','danger')}</div>`;
  $('#modal-root').innerHTML=`<div class="modal-layer ${name==='capture'?'capture-layer':''}" data-action="backdrop"><section class="sheet ${name==='capture'?'capture-sheet':''}" role="dialog" aria-modal="true" aria-label="${name==='capture'?'Sample capture':'Post-milking'}">${name==='capture'||name==='herd-picker'||name==='herd-yield'?'':'<div class="sheet-header"><span class="tinycap">POST-MILKING</span><button type="button" class="sheet-close" data-action="modal-close" aria-label="Close">×</button></div>'}${html}</section></div>`;
  const focus=({ 'add-animal':'new-line',manual:'manual-id'})[name];if(focus){const input=$('#'+focus);if(input)input.focus({preventScroll:true});}if(name==='capture'&&!options.skipCamera)startCamera();if(name==='camera-settings')CameraSettings.start();
@@ -998,6 +1008,10 @@ function downloadCompiledJSON(){
 }
 async function importJSON(file){if(!file)return;try{const text=await file.text(),parsed=JSON.parse(text);if(!Array.isArray(parsed.animals)||!parsed.session)throw Error('Not a sampling session export');if(!confirm('Import this session? It will add this session without deleting existing sessions.'))return;data=normaliseRecord(parsed);if(sessions.some(x=>x.session===data.session))data.session+='-IMPORTED';activeRecordId=data.recordId;while(sessions.some(x=>x.recordId===activeRecordId)){data.recordId=uid();activeRecordId=data.recordId;}sessions.push(data);store();await navigate('session');toast('Session imported');}catch(e){toast('Unable to import: '+e.message)}}
 function doAction(action,button){
+ // Enforce the session lifecycle at the action boundary, not just by hiding buttons.
+ const physicalEdits=['save-session','save-session-details','save-animal-details','unlink-animal','remove-animal','save-no-sample','undo-no-sample','capture-remove','link-animal-sample','save-manual','save-animal','add-animal','load-demo','save-detail-yield','swap-pick','herd-pick','herd-add-code','herd-duplicate','herd-save-yield','reopen-linking','start-link','data-add-animals','data-auto-link'];
+ if(data.phase==='closed'&&physicalEdits.includes(action)){toast('This sampling session is closed and read-only.');return;}
+ if(testsLocked()&&['toggle-add-test','save-add-test','test-save','test-select-all'].includes(action)){toast('Tests locked: laboratory receipt was simulated.');return;}
  switch(action){
  case 'menu':if(!demoAuth)return;openModal('menu');break;
  case 'demo-sign-in':{
@@ -1268,8 +1282,10 @@ function doAction(action,button){
  case 'confirm-linking':openModal('confirm-linking');break;
  case 'do-confirm-linking':if(!canFinish())return toast('Deal with awaiting and blocking duplicate records first');data.phase='confirmed';data.confirmedAt=timestamp();store();navigate('session');break;
  case 'reopen-linking':data.phase='linking';data.boxesConfirmed=false;store();navigate('linking',{autoCamera:true});break;
+ case 'ask-lab-receipt':if(data.phase!=='closed'||testsLocked())return toast('Close the session before laboratory receipt.');openModal('confirm-lab-receipt');break;
+ case 'confirm-lab-receipt':if(data.phase!=='closed'||testsLocked())return toast('Demo lab receipt cannot be recorded now.');data.labReceivedAt=timestamp();store();closeModal(false);navigate('session');toast('Laboratory receipt simulated. Tests locked.');break;
  case 'ask-close':if(data.phase!=='confirmed'||!data.boxesConfirmed||blockingIssues())return toast('Finish sampling, resolve duplicate issues and scan boxes first');openModal('confirm-close');break;
- case 'do-close':data.phase='closed';data.closedAt=timestamp();store();navigate('session');break;
+ case 'do-close':if(data.phase!=='confirmed'||!data.boxesConfirmed||blockingIssues())return toast('Resolve outstanding session requirements first.');data.phase='closed';data.closedAt=timestamp();store();navigate('session');break;
  case 'export':exportJSON();break;
  case 'import':{const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';inp.addEventListener('change',()=>importJSON(inp.files?.[0]),{once:true});inp.click();break;}
  case 'reset':if(!confirm('Delete the current session? Export it first if needed.'))return;sessions=sessions.filter(x=>x.recordId!==activeRecordId);activeRecordId='';data=normaliseRecord(fresh());persistRegistry();navigate('sessions');break;
@@ -1329,6 +1345,7 @@ document.addEventListener('change',e=>{
   saveDemoPrefs();render();return;
  }
  if(e.target.matches?.('[data-test-uid]')&&page==='tests'){
+  if(testsLocked()){e.target.checked=!e.target.checked;return;}
   const sampleUid=e.target.dataset.testUid;
   if(!sampledAnimals().some(a=>a.uid===sampleUid))return;
   if(e.target.checked)testManagerDraft.add(sampleUid);
