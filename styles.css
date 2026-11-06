@@ -589,3 +589,34 @@ input[type="checkbox"],input[type="radio"]{accent-color:var(--brand-pink)}
 .journey-page.wizard-page{
   padding-top:8px;
 }
+
+
+/* Safari date text: centre vertically within the same 50px field as Milking. */
+.journey-card .wizard-date-frame #wizard-date.input{
+  height:50px;
+  min-height:50px;
+  max-height:50px;
+  padding:0 12px;
+  line-height:46px;
+  text-align:left;
+}
+.journey-card .wizard-date-frame #wizard-date::-webkit-date-and-time-value{
+  box-sizing:border-box;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  height:46px;
+  min-height:46px;
+  max-height:46px;
+  line-height:46px;
+  text-align:left;
+}
+.journey-card .wizard-date-frame #wizard-date::-webkit-datetime-edit{
+  box-sizing:border-box;
+  display:inline-flex;
+  align-items:center;
+  height:46px;
+  min-height:46px;
+  padding:0;
+  line-height:46px;
+}
