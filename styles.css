@@ -673,3 +673,25 @@ button.animal-registry-row{cursor:pointer}
  .animal-registry-id{font-size:10px}
  .animal-registry-state{font-size:11px}
 }
+
+
+/* v1.8.14 — separate sample-pot and sample-box hardware zoom controls. */
+.camera-settings #camera-zoom-target{min-height:48px;font-size:16px}
+.box-zoom-controls{
+ display:flex;flex-direction:column;gap:7px;
+ padding:12px;border:1px solid #b9d5e3;border-radius:8px;
+ background:#f3f9fb;
+}
+.box-zoom-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.box-zoom-heading label{margin:0;color:var(--brand-navy);font:800 14px/1.25 'Barlow Condensed',Arial,sans-serif;letter-spacing:.06em}
+.box-zoom-heading strong{color:var(--brand-navy);font:800 19px/1.2 'DM Sans',Arial,sans-serif}
+#box-zoom{width:100%;height:38px;min-height:38px;accent-color:var(--brand-pink)}
+#box-zoom:disabled{opacity:.42}
+.box-zoom-presets{display:flex;gap:9px}
+.box-zoom-presets button{
+ flex:1;min-height:44px;border:1.5px solid #9dbccc;
+ border-radius:6px;padding:7px 12px;background:#fff;color:var(--brand-navy);
+ font:800 17px/1.25 'Barlow Condensed',Arial,sans-serif;
+}
+.box-zoom-presets button:disabled{opacity:.4}
+.box-zoom-note{margin:0;font:500 12px/1.45 'DM Sans',Arial,sans-serif;color:#546d7a}
