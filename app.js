@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.8.2';
+const VERSION='1.8.3';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -177,20 +177,28 @@ function siteScreen(){
  return ['<div class="journey-page"><div class="tinycap">SITE</div><h2>'+safe(site.name)+'</h2><section class="journey-card"><div class="tinycap">SITE</div><strong>'+safe(site.name)+'</strong><p>'+safe(site.address)+'</p></section><section class="journey-card"><div class="tinycap">PARLOUR</div><p>'+safe(demoSiteDesc(site))+'</p><div class="tinycap">LINKED HERDS</div><p>'+safe(site.herds.join(', ')||'None')+'</p><div class="tinycap">YIELDS</div><p>'+ (site.yields?'Record yields':'Not required')+'</p></section></div>',btn('EDIT SITE','edit-demo-site','secondary wide')+btn('ACCOUNT','goto-account','outline wide')];
 }
 function signInScreen(){
- // UI-48 / mockup 4.9.1. Display-only sample credentials; never request or store real passwords.
+ // Sign-in is a UI demonstration only: no actual credentials are entered, validated or stored.
+ const nmrMark='<div class="signin-nmr-mark" role="img" aria-label="NMR logo">'+
+  '<svg viewBox="0 0 142 88" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">'+
+   '<rect width="106" height="13" fill="#ff0055"/><rect x="106" width="17" height="13" fill="#77a82d"/><rect x="123" width="18" height="13" fill="#ffe400"/>'+
+   '<rect y="13" width="70" height="13" fill="#00d99b"/><rect x="35" y="13" width="85" height="13" fill="#e8f8f3"/><rect x="70" y="13" width="36" height="13" fill="#397c3f"/>'+
+   '<rect y="27" width="140" height="28" fill="#0e162b"/><text x="70" y="48" font-family="Arial,sans-serif" font-size="20" font-weight="700" letter-spacing="2" fill="#ffffff">NMR</text>'+
+   '<circle cx="130" cy="41" r="6.5" fill="none" stroke="#ffffff" stroke-width="1.5"/><circle cx="130" cy="41" r="2.4" fill="#ffffff"/>'+
+   '<rect y="56" width="123" height="12" fill="#00d99b"/><rect x="18" y="56" width="36" height="12" fill="#ff0055"/><rect x="36" y="56" width="18" height="6" fill="#ffe400"/>'+
+   '<rect y="68" width="72" height="11" fill="#a3e1e8"/><rect x="18" y="65" width="36" height="9" fill="#0e162b"/>'+
+  '</svg></div>';
  const content='<div class="signin-screen">'+
-  '<div class="signin-brand"><div class="signin-logo" aria-label="Logo placeholder">LOGO</div><div class="signin-brand-words"><strong>Milk Sampling</strong><span>National Milk Records</span></div></div>'+
+  nmrMark+
+  '<h1 class="signin-page-title"><strong>Sample</strong> submission</h1>'+
+  '<div class="signin-title-accent" aria-hidden="true"></div>'+
   '<p class="signin-intro">Sign in with your NMR account.</p>'+
   '<div class="signin-form-row"><label>Email or username</label><div class="signin-text-field">'+safe(demoAccount.email)+'</div></div>'+
   '<div class="signin-form-row"><label>Password</label><div class="signin-text-field signin-password-field"><span id="demo-signin-password">••••••••••</span><button type="button" data-action="demo-password-toggle" id="demo-password-toggle" aria-label="Show password" aria-pressed="false">SHOW</button></div></div>'+
-  '<button type="button" class="signin-help" data-action="demo-signin-help">Help with sign-in or access <span aria-hidden="true">›</span></button>'+
-  '<section class="signin-device"><div class="signin-device-header">THIS DEVICE</div><div class="signin-device-grid">'+
-   '<div><span>DEVICE</span><strong>HH-0142</strong></div>'+
-   '<div><span>AUTHORISATION</span><strong class="muted">Not authorised yet</strong></div>'+
-   '<div><span>LAST SYNC</span><strong class="muted">None</strong></div>'+
-  '</div></section>'+
-  '</div>';
- return [content,'<button class="btn primary signin-submit" type="button" data-action="demo-sign-in">SIGN IN</button>'];
+  '<button type="button" class="signin-help" data-action="demo-signin-help">Help with sign-in or access</button>'+
+ '</div>';
+ const footer='<div class="signin-device-status"><span>Device HH-0142</span><span>Not authorised yet</span></div>'+
+  '<button class="btn primary signin-submit" type="button" data-action="demo-sign-in">SIGN IN</button>';
+ return [content,footer];
 }
 
 function startDemoWizard(){

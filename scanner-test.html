@@ -1,16 +1,16 @@
 <!doctype html>
 <html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#0d1b2a">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#0e162b">
 <title>Camera & QR diagnostic · Postmilk v0.4.3</title>
 <style>
-:root{font-family:system-ui,-apple-system,Arial,sans-serif;background:#f4f7f9;color:#0d1b2a}*{box-sizing:border-box}body{margin:0}
-header{background:#0d1b2a;color:white;padding:max(16px,env(safe-area-inset-top)) 16px 14px}h1{font-size:22px;margin:0 0 7px}main{padding:14px;max-width:720px;margin:auto}.panel{background:white;border:1px solid #d8e3ea;border-radius:9px;padding:13px;margin-bottom:12px}.label{font-size:12px;text-transform:uppercase;color:#53798c;font-weight:800;letter-spacing:.07em}.intro{font-size:13px;line-height:1.5;color:#435d69;margin:8px 0}.camera-frame{position:relative;display:block;width:100%;height:clamp(225px,43dvh,420px);background:#1e242b;border-radius:7px;overflow:hidden;margin:12px 0 10px}
+:root{font-family:system-ui,-apple-system,Arial,sans-serif;background:#f4f7f9;color:#0e162b}*{box-sizing:border-box}body{margin:0}
+header{background:#0e162b;color:white;padding:max(16px,env(safe-area-inset-top)) 16px 14px}h1{font-size:22px;margin:0 0 7px}main{padding:14px;max-width:720px;margin:auto}.panel{background:white;border:1px solid #d8e3ea;border-radius:9px;padding:13px;margin-bottom:12px}.label{font-size:12px;text-transform:uppercase;color:#53798c;font-weight:800;letter-spacing:.07em}.intro{font-size:13px;line-height:1.5;color:#435d69;margin:8px 0}.camera-frame{position:relative;display:block;width:100%;height:clamp(225px,43dvh,420px);background:#1e242b;border-radius:7px;overflow:hidden;margin:12px 0 10px}
 #native-video{display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#1e242b;z-index:2}
 #reader{position:absolute;inset:0;width:100%;height:100%;z-index:3;overflow:hidden}
 #reader video{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;background:#1e242b!important;max-width:none!important}
 #reader>div{max-width:100%}.placeholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:18px;color:#cedce5;font-size:14px;z-index:1;pointer-events:none}
-.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}button,.back{border:1px solid #0d1b2a;border-radius:6px;padding:12px 9px;min-height:47px;background:#0d1b2a;color:#fff;font:700 13px system-ui;text-decoration:none;cursor:pointer;text-align:center}button.alt{background:white;color:#0d1b2a}button:disabled{opacity:.4;cursor:default}
-.status{padding:12px;background:#e8f2f9;border-left:4px solid #2a7aaa;font-size:13px;line-height:1.5;overflow-wrap:anywhere}.value{font-weight:800;font-size:25px;word-break:break-all}.good{color:#007a5c}.bad{color:#aa254b}.meta{white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.55 ui-monospace,monospace;color:#5a6f7b}.note{font-size:12px;color:#526d79;line-height:1.5}.file{position:absolute;left:-9999px;width:1px;height:1px}.bar{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}button,.back{border:1px solid #0e162b;border-radius:6px;padding:12px 9px;min-height:47px;background:#0e162b;color:#fff;font:700 13px system-ui;text-decoration:none;cursor:pointer;text-align:center}button.alt{background:white;color:#0e162b}button:disabled{opacity:.4;cursor:default}
+.status{padding:12px;background:#e7faf4;border-left:4px solid #ff0055;font-size:13px;line-height:1.5;overflow-wrap:anywhere}.value{font-weight:800;font-size:25px;word-break:break-all}.good{color:#007a5c}.bad{color:#aa254b}.meta{white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.55 ui-monospace,monospace;color:#5a6f7b}.note{font-size:12px;color:#526d79;line-height:1.5}.file{position:absolute;left:-9999px;width:1px;height:1px}.bar{display:flex;justify-content:space-between;align-items:center;gap:6px}
 </style>
 </head><body>
 <header><h1>Camera & QR test</h1><div style="font-size:12px;color:#b5d0dc">Postmilk v0.4.3 · Test camera before barcode decoding</div></header>
