@@ -1024,7 +1024,7 @@ function doAction(action,button){
   const name=$('#demo-site-name')?.value.trim(),address=$('#demo-site-address')?.value.trim();
   const rows=Number($('#demo-site-rows')?.value),stalls=Number($('#demo-site-stalls')?.value);
   if(!name||!address||!Number.isSafeInteger(rows)||rows<1||rows>8||!Number.isSafeInteger(stalls)||stalls<1||stalls>100)return toast('Complete the site details and choose valid parlour dimensions.');
-  const herds=$('[data-site-herd]:checked').map(el=>el.dataset.siteHerd);
+  const herds=$$('[data-site-herd]:checked').map(el=>el.dataset.siteHerd);
   if(!herds.length)return toast('Link at least one available herd.');
   const existing=modal==='demo-site-form'&&selectedUid?demoSite():null;
   const site={id:existing?.id||uid(),name,address,type:$('#demo-site-type')?.value||'Other',rows,stalls,herds,yields:!!$('#demo-site-yields')?.checked};
