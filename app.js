@@ -5,7 +5,7 @@
  * Prototype only — data stays on the device; nothing is sent to NMR.
  */
 'use strict';
-const VERSION='1.8.17';
+const VERSION='1.8.18';
 const STORAGE='postmilk-clean-1.0';
 const SESSIONS_STORAGE='postmilk-sessions-v1';
 const ACTIVE_SESSION_STORAGE='postmilk-active-session-v1';
@@ -628,7 +628,9 @@ function cameraMarkup(){
  return panel+`<div class="scan-status" id="scan-status" role="status">Camera ready to start</div><div class="buttons camera-controls">${btn('START CAMERA','camera-toggle','secondary smallbtn')}${btn('TYPE BOX ID','manual-sample','outline smallbtn')}</div><details class="diag"><summary>Camera diagnostics</summary><pre id="scan-debug">Waiting for camera</pre><p class="frame-tip">Hold a QR code in view. Tap the button, then keep it steady for two seconds.</p><button type="button" class="btn secondary wide" data-action="test-frame" id="test-frame-button">CAPTURE &amp; TEST FRAME</button><div id="frame-result" class="frame-result" role="status" aria-live="polite">No frame tested yet.</div><img id="frame-preview" class="frame-preview" alt="Still frame captured from the camera" hidden></details>`;
 }
 function linkingScreen(){
- const n=waiting().length,l=linked().length,ns=noSample().length;
+ // Completed animals (linked or No Sample) leave the active scanning queue.
+ // Their records remain accessible in Animals and Issues.
+ const n=waiting().length;
  let html='',footer='';
  if(!animals().length){html+=`<div class="notice">Add animals in the order their pots are laid out. You can also load demo animals for testing.</div><div class="buttons">${btn('+ ADD COWS','add-animal','primary wide')}${btn('LOAD DEMO','load-demo','outline wide')}</div>`;}
  else if(data.phase==='setup'||data.phase==='adding'){
@@ -643,7 +645,6 @@ function linkingScreen(){
   html+=`<div class="section-head"><strong>LAST LINKED ANIMAL</strong><button type="button" data-action="show-linked">VIEW ALL LINKED</button></div><div class="latest-slot" id="last-linked">${latest()?animalCard(latest()):'<div class="no-last">The last linked animal will appear here in green</div>'}</div>`;
   if(data.phase==='linking'){
    if(n)html+=cameraMarkup()+`<section id="awaiting-section"><div class="section-head"><strong>AWAITING · <span id="await-count">${n}</span></strong></div><div id="await-rows">${waiting().map((a,i)=>animalCard(a,{isNext:i===0})).join('')}</div></section>`;
-   if(ns)html+=`<div class="section-head"><strong>NO SAMPLE · ${ns}</strong></div><div id="no-sample-rows">${noSample().map(a=>animalCard(a)).join('')}</div>`;
   }else html+=`<div class="notice ok">Sample linking confirmed. Return to Session Management to continue.</div>`;
   footer=`${btn('+ ADD COWS','add-animal','primary')}${btn('SESSION MANAGEMENT','goto-session','outline')}`;
  }
